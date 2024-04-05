@@ -1,0 +1,14 @@
+altair==4.2.0
+matplotlib==3.5.1
+numpy
+# opencv_python==4.5.5.64
+# opencv-python-headless
+Pillow==9.1.1
+pydicom==2.3.0
+scipy<1.8.0
+streamlit
+# streamlit_image_comparison==0.0.2
+# streamlit_lottie==0.0.3
+streamlit_nested_layout==0.1.1
+scikit_image
+nibabel
