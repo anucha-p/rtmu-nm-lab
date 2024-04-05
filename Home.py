@@ -7,14 +7,11 @@ st.set_page_config(
 
 st.sidebar.success("Select a demo above.")
 
-st.write("# Welcome to NMLAB Demo Application! 👋")
+st.write("# Welcome to NMLAB Applications! 👋")
 
 st.markdown(
     """
-    Streamlit is an open-source app framework built specifically for
-    Machine Learning and Data Science projects.
-    **👈 Select a demo from the sidebar** to see some example!
-    ### Want to learn more?
+    **👈 Select an application from the sidebar** 
     - Profile, Projection and Sinogram
     - Image filtering
     - Image reconstruction in Nuclear Medicine
