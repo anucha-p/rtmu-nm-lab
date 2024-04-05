@@ -113,11 +113,13 @@ org_img = Image.fromarray(img)
 
 m,n = np.shape(img)
 shape = np.shape(img)
+
 if m > n:
     img = np.pad(img, ((0,0),(0,int(m-n))))
 elif m < n:
     img = np.pad(img, ((0,int(n-m)),(0,0)))
-
+m,n = np.shape(img)
+shape = np.shape(img)
 x = np.linspace(0,1,int(m/2))
 
 # ---- STORE IMAGES IN STATE
@@ -221,15 +223,6 @@ with st.container():
         # )
     st.write("---")
 
-# with st.container():
-#     img_left, img_right = st.columns(2)
-#     with img_left:
-#         st.subheader('Original Image')
-#         st.image(org_img)
-#     with img_right:
-#         st.subheader('Filtered Image')
-#         st.image(img_disp)
-
 with st.container():
     if selected_filter == Filter_list[0]:
         with st.expander('SEE FILTERING PROCESS'):
@@ -245,9 +238,6 @@ with st.container():
             axr_1[1,0].imshow(gauss_2D)
             axr_1[1,0].set_title('2D Gaussian kernel size= '+str(ksize)+"x"+str(ksize), fontsize=font_size)
             
-            # X_Y_Spline = make_interp_spline(np.arange(len(gauss_ker)), gauss_ker)
-            # X_ = np.linspace(0, len(gauss_ker), len(gauss_ker))
-            # Y_ = X_Y_Spline(X_)
             axr_1[1,1].plot(gauss_ker)
             axr_1[1,1].set_title('1D Gaussian kernel', fontsize=font_size)
 
@@ -272,9 +262,9 @@ with st.container():
 
             fig, axr = plt.subplots(3,3, figsize = (10,10))
             font_size = 8;
-            axr[0,0].imshow(img)
+            axr[0,0].imshow(img, cmap='gray')
             axr[0,0].set_title('Original image, f', fontsize=font_size)
-            axr[0,1].imshow(mag_img_dft)
+            axr[0,1].imshow(mag_img_dft, cmap='gray')
             axr[0,1].set_title('Image in Frequency Domain, F', fontsize=font_size)
             axr[0,0].set_xticklabels('')
             axr[0,1].set_xticklabels('')
@@ -282,7 +272,7 @@ with st.container():
             axr[0,1].set_yticklabels('')
             axr[0,2].plot(x, mag_img_dft[int(shape[0]/ 2),int(shape[1]/ 2):shape[1]])
 
-            axr[1,1].imshow(mag_filt)
+            axr[1,1].imshow(mag_filt, cmap='gray')
             if selected_filter == 1:
                 axr[1,1].set_title(selected_filter +' G with Cut-off = ' + str(cutoff) + ', Order = ' + str(order), fontsize=font_size)
             else:
@@ -293,9 +283,9 @@ with st.container():
             axr[1,0].set_yticklabels('')
             axr[1,1].set_yticklabels('')
 
-            axr[2,0].imshow(filt_img)
+            axr[2,0].imshow(filt_img, cmap='gray')
             axr[2,0].set_title('Filtered image', fontsize=font_size)
-            axr[2,1].imshow(mag_filt_dft)
+            axr[2,1].imshow(mag_filt_dft, cmap='gray')
             axr[2,1].set_title('Filtered image F*G in Frequency Domain', fontsize=font_size)
             axr[2,0].set_xticklabels('')
             axr[2,1].set_xticklabels('')

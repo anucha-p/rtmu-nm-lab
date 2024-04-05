@@ -7,7 +7,6 @@ import numpy as np
 import pydicom as dicom
 import streamlit_nested_layout
 import nibabel as nib
-from skimage.transform import radon
 from scipy import ndimage
 
 st.set_page_config(page_title="Sinogram", page_icon="✋🏻", layout="wide")
@@ -30,7 +29,7 @@ remove_top_padding = """
         """
 st.markdown(remove_top_padding, unsafe_allow_html=True)
 
-uploaded_file = st.file_uploader("Upload MUGA file", type=['dcm','DCM','nii','gz'])
+uploaded_file = st.file_uploader("Upload MUGA file", type=['dcm','DCM'])
 if uploaded_file is not None:
     # img_path = uploaded_file
     # st.write("filename:", uploaded_file.name)
