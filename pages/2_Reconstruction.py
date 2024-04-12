@@ -9,7 +9,7 @@ import numpy as np
 # import math
 import pandas as pd
 import altair as alt
-import streamlit_nested_layout
+# import streamlit_nested_layout
 import time
 import os
 
@@ -247,11 +247,11 @@ with st.container():
             recon_img = None
             if selected_recon_alg == Recon_Alg_List[0]:
                 with placeholder.container():
-                    rcol1, rcol2 = st.columns(2)
-                    with rcol1:
-                        n_ite = st.number_input('Number of iteration:', min_value=1)
-                    with rcol2:
-                        n_subsets = st.number_input('Number of subsets:', min_value = 1, help="Number of subsets should be a divisor of the total number of projections.")
+                    # rcol1, rcol2 = st.columns(2)
+                    # with rcol1:
+                    n_ite = st.number_input('Number of iteration:', min_value=1)
+                    # with rcol2:
+                    n_subsets = st.number_input('Number of subsets:', min_value = 1, help="Number of subsets should be a divisor of the total number of projections.")
             elif selected_recon_alg ==  Recon_Alg_List[1]:
                 with placeholder.container():
                     n_ite = st.number_input('Number of iteration:', min_value=1)
