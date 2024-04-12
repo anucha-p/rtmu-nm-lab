@@ -60,7 +60,7 @@ def read_dcm(imp_path):
     return disp_img
 
 
-@st.cache_resource
+# @st.cache_resource
 def read_nii(img_path):
     img = nib.load(img_path)
     a = np.array(img.dataobj)
@@ -69,7 +69,7 @@ def read_nii(img_path):
     a = np.uint8(scaled_image)
     return a
 
-@st.cache_data
+# @st.cache_data
 def get_projection(object, theta):
     sino_p = np.zeros([m, theta.shape[0], n])
     for i in range(n):
@@ -81,7 +81,7 @@ def get_projection(object, theta):
     return prj
 
 
-@st.cache_data
+# @st.cache_data
 def disp_prj(prj,theta):
     n_col = 6
     n_row = int(prj.shape[0]/n_col)

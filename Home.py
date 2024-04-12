@@ -12,9 +12,9 @@ st.write("# Welcome to NMLAB Applications! 👋")
 st.markdown(
     """
     **👈 Select an application from the sidebar** 
-    - Profile, Projection and Sinogram
     - Image filtering
     - Image reconstruction in Nuclear Medicine
+    - Profile, Projection and Sinogram
 """
 )
 

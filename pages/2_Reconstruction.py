@@ -1,17 +1,17 @@
 from skimage.transform import radon, iradon
-from skimage.filters import gaussian
+# from skimage.filters import gaussian
 from skimage.draw import disk
 import streamlit as st
 from pathlib import Path
 
 import numpy as np
-import pydicom as dicom
-import math
+# import pydicom as dicom
+# import math
 import pandas as pd
 import altair as alt
 import streamlit_nested_layout
 import time
-
+import os
 
 st.set_page_config(page_title="Reconstruction", page_icon="✋🏻", layout="wide")
 
@@ -45,22 +45,14 @@ with st.container():
     st.title("Image Reconstruction in Nuclear Medicine")
     st.write("---")
 # ---- LOAD IMAGE ----
-BASE_DIR = Path(__file__).resolve().parent
-IMAGE_DIR = BASE_DIR / 'images/recon' 
-imageNames = [f.name for f in IMAGE_DIR.iterdir() if f.suffix=='.dcm']
-
+# BASE_DIR = Path(__file__).resolve().parent
+BASE_DIR = os.path.abspath(os.path.join(__file__, '../'))
+IMAGE_DIR = os.path.join(BASE_DIR, 'images/recon')
+# IMAGE_DIR = BASE_DIR / 'images/recon' 
+# imageNames = [f.name for f in IMAGE_DIR.iterdir() if f.name.endswith('.npy')]
+file_name = os.listdir(IMAGE_DIR)
+imageNames = [f for f in file_name if f.endswith('.npy')]
 st.sidebar.header("Reconstruction")
-
-
-def gaussianKernel2(size, sigma, twoDimensional=True):
-    """
-    Creates a gaussian kernel with given sigma and size, 3rd argument is for choose the kernel as 1d or 2d
-    """
-    if twoDimensional:
-        kernel = np.fromfunction(lambda x, y: (1/(2*math.pi*sigma**2)) * math.e ** ((-1*((x-(size-1)/2)**2+(y-(size-1)/2)**2))/(2*sigma**2)), (size, size))
-    else:
-        kernel = np.fromfunction(lambda x: math.e ** ((-1*(x-(size-1)/2)**2) / (2*sigma**2)), (size,))
-    return kernel / np.sum(kernel)
 
 
 def mlem(sinogram, niter):
@@ -69,9 +61,9 @@ def mlem(sinogram, niter):
     theta = np.linspace(0.0, 360.0, nview, endpoint=False)
     # Initial image
     mlem_rec = np.ones([image_shape, image_shape])
-    row, column = disk(
-        (int(image_shape / 2), int(image_shape / 2)), int(image_shape / 2 - 10))
-    mlem_rec[row, column] = 1
+    # row, column = disk(
+    #     (int(image_shape / 2), int(image_shape / 2)), int(image_shape / 2 - 10))
+    # mlem_rec[row, column] = 1
 
     # Sensitivity map
     sino_ones = np.ones(sinogram.shape)
@@ -98,26 +90,27 @@ def osem(sinogram, niter, nsub):
     theta = np.linspace(0.0, 360.0, nview, endpoint=False)
     # st.write(theta)
     # Initial image
-    osem_rec = np.zeros([image_shape, image_shape])*100
+    osem_rec = np.ones([image_shape, image_shape])
 
-    row, column = disk(
-        (int(image_shape / 2), int(image_shape/ 2)), int(image_shape/2 - 10))
-    osem_rec[row, column] = 1
+    # row, column = disk(
+    #     (int(image_shape / 2), int(image_shape/ 2)), int(image_shape/2 - 10))
+    # osem_rec[row, column] = 1
     # st.write(osem_rec.shape)
     # st.image(osem_rec, width=340)
     # Sensitivity map (Normalization matrix)
     # nview = len(theta)
-    sino_ones = np.ones(sinogram.shape)
+    # sino_ones = np.ones(sinogram.shape)
     
-    sens_images = []
-    for sub in range(nsub):
-        views = range(sub, nview, nsub)
-        # st.write(views)
-        sens_image = iradon(
-            sino_ones[:, views], theta=theta[views], circle=True, filter_name=None)
-        sens_images.append(sens_image)
+    # sens_images = []
+    # for sub in range(nsub):
+    #     views = range(sub, nview, nsub)
+    #     # st.write(views)
+    #     sens_image = iradon(
+    #         sino_ones[:, views], theta=theta[views], circle=True, filter_name=None)
+    #     sens_images.append(sens_image)
     # st.image(sens_images[0], width=340, clamp=True)
-    
+    sino_ones = np.ones(sinogram.shape)
+    sens_image = iradon(sino_ones, theta=theta, circle=True, filter_name=None)
     
     for iter in range(niter):
         order_sub = np.random.permutation(range(nsub))
@@ -131,10 +124,10 @@ def osem(sinogram, niter, nsub):
             ratio = sinogram[:, views] / (fp + 0.000001)  # ratio sinogram
             # st.image(ratio, width=340, clamp=True)
             correction = iradon(
-                ratio, theta[views], circle=True, filter_name=None) #/ (sens_image[sub] + 0.000001)
+                ratio, theta[views], circle=True, filter_name=None) / (sens_image+0.00000001)
             # st.image(correction, width=340, clamp=True)
             # st.write(theta[views])
-            osem_rec = osem_rec * correction  # update
+            osem_rec = osem_rec * correction #/ (sens_image[sub] + 0.000001) # update
 
     elapsed = (time.time() - tt)
     elapsed = "{:.2f}".format(elapsed)
@@ -143,6 +136,7 @@ def osem(sinogram, niter, nsub):
 
 
 # @st.cache_data(ttl=60, max_entries=10, show_spinner="Reconstruction in progress...")
+@st.cache_data(max_entries=1)
 def fbp(measured_sino, arc=360):
     tt = time.time()
     x, t = np.shape(measured_sino)
@@ -155,6 +149,7 @@ def fbp(measured_sino, arc=360):
 
 
 # @st.cache_data(ttl=60, max_entries=10, show_spinner="Reconstruction in progress...")
+@st.cache_data(max_entries=1)
 def bp(measured_sino, arc=360):
     tt = time.time()
     x, t = np.shape(measured_sino)
@@ -166,108 +161,22 @@ def bp(measured_sino, arc=360):
     return backproj
 
 
-# @st.cache_data
+@st.cache_data(max_entries=1)
 def read_dcm(dcm_img):
     ds = dicom.dcmread(dcm_img)
     img = ds.pixel_array.astype(float)
     return img
 
+@st.cache_data(max_entries=1)
+def read_sino(sino_npy_file):
+    sino = np.load(sino_npy_file)
+    return sino
 
-# @st.cache_data
+@st.cache_data(persist="disk")
 def get_disp_img(img):
     scaled_image = (np.maximum(img, 0) / img.max()) * 255.0
     disp_img = np.uint8(scaled_image)
     return disp_img
-
-
-# @st.cache_data(ttl=60, max_entries=10, show_spinner="Reconstruction in progress...")
-def getButterworth_lowpass_filter(shape, cutoff=0.25, order=2):
-    m, n = shape
-    d0 = cutoff
-    h = np.zeros((m, n))
-    X = np.linspace(-1, 1, shape[0])
-    Y = np.linspace(-1, 1, shape[0])
-    for i, x in enumerate(X):
-        for j, y in enumerate(X):
-            d = math.sqrt((x ** 2) + (y ** 2))
-            h[i, j] = 1 / (1 + (d / d0) ** (2 * order))
-    return h
-
-
-# @st.cache_data(ttl=60, max_entries=10, show_spinner="Reconstruction in progress...")
-def getButterworth_highpass_filter(shape, cutoff=0.25, order=2):
-    m, n = shape
-    d0 = cutoff
-    h = np.zeros((m, n))
-    X = np.linspace(-1, 1, shape[0])
-    Y = np.linspace(-1, 1, shape[0])
-    for i, x in enumerate(X):
-        for j, y in enumerate(X):
-            d = math.sqrt((x ** 2) + (y ** 2))
-            h[i, j] = 1 / (1 + (d0 / d) ** (2 * order))
-    return h
-
-
-# @st.cache_data
-def getHanning_filter(shape, cutoff=0.25):
-    m, n = shape
-    d0 = cutoff
-    h = np.zeros((m, n))
-    X = np.linspace(-1, 1, shape[0])
-    Y = np.linspace(-1, 1, shape[0])
-    for i, x in enumerate(X):
-        for j, y in enumerate(X):
-            d = math.sqrt((x ** 2) + (y ** 2))
-            if 0 <= d and d <= d0:
-                h[i, j] = 0.5 + 0.5*math.cos(math.pi*d/d0)
-            else:
-                h[i, j] = 0
-    return h
-
-
-# @st.cache_data
-def getHamming_filter(shape, cutoff=0.25):
-    m, n = shape
-    d0 = cutoff
-    h = np.zeros((m, n))
-    X = np.linspace(-1, 1, shape[0])
-    Y = np.linspace(-1, 1, shape[0])
-    for i, x in enumerate(X):
-        for j, y in enumerate(X):
-            d = math.sqrt((x ** 2) + (y ** 2))
-            if 0 <= d and d <= d0:
-                h[i, j] = 0.54 + 0.46*math.cos(math.pi*d/d0)
-            else:
-                h[i, j] = 0
-    return h
-
-
-# @st.cache_data
-def fourier_filter(image, filt):
-    image_fft = np.fft.fft2(image)
-    shift_fft = np.fft.fftshift(image_fft)
-    filtered_image = np.multiply(filt, shift_fft)
-    shift_ifft = np.fft.ifftshift(filtered_image)
-    ifft = np.fft.ifft2(shift_ifft)
-    filt_image = np.abs(ifft)
-    return filt_image
-
-
-# @st.cache_data
-def getGaussion_filter(shape=(3, 3), sigma=0.5):
-    """
-    2D gaussian mask - should give the same result as MATLAB's
-    fspecial('gaussian',[shape],[sigma])
-    """
-    m, n = [(ss-1.)/2. for ss in shape]
-    y, x = np.ogrid[-m:m+1, -n:n+1]
-    h = np.exp(-(x*x + y*y) / (2.*sigma*sigma))
-    h[h < np.finfo(h.dtype).eps*h.max()] = 0
-    sumh = h.sum()
-    if sumh != 0:
-        h /= sumh
-    return h
-
 
 # ------  APP -----#
 # # if img_path is not None:
@@ -282,16 +191,11 @@ if 'compare_image' not in st.session_state:
 if 'compare_filter' not in st.session_state:
     st.session_state.compare_filter = pd.DataFrame([])
 
-Filter_list = ['None',
-'Gaussian', 
-'Butterworth', 
-'Hanning',
-'Hamming']
 
 Recon_Alg_List = ['OSEM',
                 'MLEM',
                 'FBP',
-                'Simple BP']
+                'Backprojection']
 
 
 # st.write("---")
@@ -301,90 +205,89 @@ with st.container():
 
     with left_col:
         st.subheader("PROJECTION DATA")
-        with st.expander("CHANGE PROJECTION DATA"):
-            # st.subheader("Select/Upload projection data")
-            # left_top_col, right_top_col = st.columns(2)
-            # with left_top_col:
-            sample_image = st.selectbox('Choose sample projection', imageNames, index=0)
-            img_path = IMAGE_DIR / sample_image
-            # with right_top_col:
-            uploaded_file = st.file_uploader(
-                "or Upload projection data (.dcm or .DCM)", accept_multiple_files=False, type=['dcm', 'DCM'])
-            st.warning('Data Dimension: Projections x Slices x Bins')
-            if uploaded_file is not None:
-                img_path = uploaded_file
+        # with st.expander("CHANGE PROJECTION DATA"):
+        # st.subheader("Select/Upload projection data")
+        # left_top_col, right_top_col = st.columns(2)
+        # with left_top_col:
+        sample_image = st.radio('Choose sample projection', imageNames, index=0,  horizontal=True)
+        # img_path = IMAGE_DIR / sample_image
+        img_path = os.path.join(IMAGE_DIR, sample_image)
+        # with right_top_col:
+        # uploaded_file = st.file_uploader(
+        #     "or Upload projection data (.dcm or .DCM)", accept_multiple_files=False, type=['dcm', 'DCM'])
+        # st.warning('Data Dimension: Projections x Slices x Bins')
+        # if uploaded_file is not None:
+        #     img_path = uploaded_file
 
         if img_path is not None:
-            img = read_dcm(img_path)
-            disp_img = get_disp_img(img)
-            t, m, n = np.shape(img)
-            x = np.linspace(0, 1, int(m/2))
+            
+            sino = read_sino(img_path)
+            t,m = np.shape(sino)
+            disp_img = get_disp_img(sino.T)
+            
+            pre, ext = os.path.splitext(img_path)
+            prj_path = pre + '.png'
 
-            # st.write('Num of Projection: ' + str(t) + ',  Num of Slice: '+ str(m)+',  Num of Bin: '+ str(n))
-            angle = st.slider("Projection:", min_value=1, max_value=t, step=1, value=1)
-            slice_loc = st.slider("Slice:", min_value=1, max_value=m, step=1, value=int(m/2))
-            proj_angle = np.array(range(0,360,int(360/t)))
-
-            proj_img = disp_img[angle,:,:].copy()
-            proj_img[slice_loc,:] = 255.0
-            st.image(proj_img, width=340)
+            st.caption('Projection')
+            st.image(prj_path, width=340, clamp=True)
+            st.caption('Sinogram')
+            st.image(disp_img, width=340, clamp=True)
+            
 
 
     with mid_col:
         st.subheader("IMAGE RECONSTRUCTION")
-        selected_recon_alg = st.selectbox('Reconstruction Algorithm:', Recon_Alg_List, index=0)
-
         
-        sino = img[:,slice_loc,:].copy()
-        sino = np.swapaxes(sino,0,1)
-        placeholder = st.empty()
-        recon_img = None
-        if selected_recon_alg == Recon_Alg_List[0]:
-            with placeholder.container():
-                rcol1, rcol2 = st.columns(2)
-                with rcol1:
+        selected_recon_alg = st.radio('Reconstruction Algorithm:', Recon_Alg_List, index=0)
+
+        with st.form("Filter parameter"):    
+            # sino = img[:,slice_loc,:].copy()
+            # sino = np.swapaxes(sino,0,1)
+            placeholder = st.empty()
+            recon_img = None
+            if selected_recon_alg == Recon_Alg_List[0]:
+                with placeholder.container():
+                    rcol1, rcol2 = st.columns(2)
+                    with rcol1:
+                        n_ite = st.number_input('Number of iteration:', min_value=1)
+                    with rcol2:
+                        n_subsets = st.number_input('Number of subsets:', min_value = 1, help="Number of subsets should be a divisor of the total number of projections.")
+            elif selected_recon_alg ==  Recon_Alg_List[1]:
+                with placeholder.container():
                     n_ite = st.number_input('Number of iteration:', min_value=1)
-                with rcol2:
-                    n_subsets = st.number_input('Number of subsets:', min_value = 1, help="Number of subsets should be a divisor of the total number of projections.")
-                # t = time.time()
-                if st.button('Start Recon'):
-                    # recon_img = osem(sino, n_ite, n_subsets)
+                        
+
+            # elapsed = (time.time() - t)*m
+            # elapsed = "{:.2f}".format(elapsed)
+            # st.write('Estimated reconstruction time (sec): ' + str(elapsed))
+            
+            
+            submitted = st.form_submit_button("Apply")
+            if submitted:
+                if selected_recon_alg == Recon_Alg_List[0]:
                     recon_img = osem(sino, n_ite, n_subsets)
                     if recon_img is None:
                         st.caption('#subsets ('+str(n_subsets) + ') is not a divisor of #projections (' + str(t) +')')
-                
-                recon_str = selected_recon_alg +' ('+str(n_ite)+'x'+str(n_subsets)+')'
-
-        elif selected_recon_alg ==  Recon_Alg_List[1]:
-            with placeholder.container():
-                n_ite = st.number_input('Number of iteration:', min_value=1)
-                # t = time.time()
-                if st.button('Start Recon'):
+                    recon_str = selected_recon_alg +' '+str(n_ite)+' iteration, '+str(n_subsets)+' subset'
+                    
+                elif selected_recon_alg ==  Recon_Alg_List[1]:
                     recon_img = mlem(sino, n_ite)
-                recon_str = selected_recon_alg +' ('+str(n_ite)+')'
-
-        elif selected_recon_alg ==  Recon_Alg_List[2]:
-            with placeholder.container():
-                # t = time.time()
-                if st.button('Start Recon'):
+                    recon_str = selected_recon_alg +' '+str(n_ite)+' iteration'
+                    
+                elif selected_recon_alg ==  Recon_Alg_List[2]:
                     recon_img = fbp(sino)
-                recon_str = selected_recon_alg 
-
-        elif selected_recon_alg ==  Recon_Alg_List[3]:
-            with placeholder.container():
-                # t = time.time()
-                if st.button('Start Recon'):
+                    recon_str = selected_recon_alg 
+                elif selected_recon_alg ==  Recon_Alg_List[3]:
                     recon_img = bp(sino)
-                recon_str = selected_recon_alg
-        # elapsed = (time.time() - t)*m
-        # elapsed = "{:.2f}".format(elapsed)
-        # st.write('Estimated reconstruction time (sec): ' + str(elapsed))
-        if recon_img is not None:
-            st.caption("RECONSTRUCTED IMAGE")
-            disp_recon_img = (np.maximum(recon_img, 0) /
-                            recon_img.max()) * 255.0
-            disp_recon_img = np.uint8(disp_recon_img)
-            st.image(disp_recon_img, width=340)
+                    recon_str = selected_recon_alg  
+                    
+            if recon_img is not None:
+                st.write("RECONSTRUCTED IMAGE")
+                disp_recon_img = (np.maximum(recon_img, 0) /
+                                recon_img.max()) * 255.0
+                disp_recon_img = np.uint8(disp_recon_img)
+                st.image(disp_recon_img, width=340)
+                st.write(recon_str)
 
     st.divider()
 # with st.container():
