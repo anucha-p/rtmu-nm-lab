@@ -1,8 +1,8 @@
 from skimage.transform import radon, iradon
 # from skimage.filters import gaussian
-from skimage.draw import disk
+# from skimage.draw import disk
 import streamlit as st
-from pathlib import Path
+# from pathlib import Path
 
 import numpy as np
 # import pydicom as dicom
@@ -12,6 +12,8 @@ import altair as alt
 # import streamlit_nested_layout
 import time
 import os
+import plotly.express as px
+from PIL import Image
 
 st.set_page_config(page_title="Reconstruction", page_icon="✋🏻", layout="wide")
 
@@ -136,7 +138,7 @@ def osem(sinogram, niter, nsub):
 
 
 # @st.cache_data(ttl=60, max_entries=10, show_spinner="Reconstruction in progress...")
-@st.cache_data(max_entries=1)
+# @st.cache_data(max_entries=1)
 def fbp(measured_sino, arc=360):
     tt = time.time()
     x, t = np.shape(measured_sino)
@@ -149,7 +151,7 @@ def fbp(measured_sino, arc=360):
 
 
 # @st.cache_data(ttl=60, max_entries=10, show_spinner="Reconstruction in progress...")
-@st.cache_data(max_entries=1)
+# @st.cache_data(max_entries=1)
 def bp(measured_sino, arc=360):
     tt = time.time()
     x, t = np.shape(measured_sino)
@@ -161,18 +163,18 @@ def bp(measured_sino, arc=360):
     return backproj
 
 
-@st.cache_data(max_entries=1)
-def read_dcm(dcm_img):
-    ds = dicom.dcmread(dcm_img)
-    img = ds.pixel_array.astype(float)
-    return img
+# @st.cache_data(max_entries=2)
+# def read_dcm(dcm_img):
+#     ds = dicom.dcmread(dcm_img)
+#     img = ds.pixel_array.astype(float)
+#     return img
 
-@st.cache_data(max_entries=1)
+# @st.cache_data(max_entries=2)
 def read_sino(sino_npy_file):
     sino = np.load(sino_npy_file)
     return sino
 
-@st.cache_data(persist="disk")
+# @st.cache_data(max_entries=2)
 def get_disp_img(img):
     scaled_image = (np.maximum(img, 0) / img.max()) * 255.0
     disp_img = np.uint8(scaled_image)
@@ -196,7 +198,6 @@ Recon_Alg_List = ['OSEM',
                 'MLEM',
                 'FBP',
                 'Backprojection']
-
 
 # st.write("---")
 # ---- RECONSTRUCTION ----
@@ -230,9 +231,19 @@ with st.container():
 
             st.caption('Projection')
             st.image(prj_path, width=340, clamp=True)
+            # prj = np.array(Image.open(prj_path).convert('L'))
+            # fig_prj = px.imshow(prj, binary_string=True)
+            # fig_prj.update_xaxes(showticklabels=False)
+            # fig_prj.update_yaxes(showticklabels=False)
+            # fig_prj.update_layout(title_text="Projection")
+            # st.plotly_chart(fig_prj, use_container_width=True)
             st.caption('Sinogram')
             st.image(disp_img, width=340, clamp=True)
-            
+            # fig_sino = px.imshow(sino.T, binary_string=True)
+            # fig_sino.update_xaxes(showticklabels=False)
+            # fig_sino.update_yaxes(showticklabels=False)
+            # fig_sino.update_layout(title_text="Sinogram")
+            # st.plotly_chart(fig_sino, use_container_width=True)
 
 
     with mid_col:
