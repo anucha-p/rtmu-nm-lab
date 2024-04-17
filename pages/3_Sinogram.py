@@ -105,6 +105,7 @@ def init():
     tomo = np.load(SLICE_DIR)
     return prj, tomo
 
+prj, tomo = init()
 
 disp_img = read_nii(img_path)
 m, n, s = np.shape(disp_img)
@@ -124,8 +125,8 @@ with st.expander('Profile'):
     with left_top_col:
 
 
-        slice_profile = st.number_input(
-            "Slice:", min_value=1, max_value=s, step=5, value=int(s/2), key='slice_prof')
+        # slice_profile = st.number_input(
+        #     "Slice:", min_value=1, max_value=s, step=5, value=int(s/2), key='slice_prof')
 
         profile_ang = st.number_input("Angle (ϴ):", min_value=0, max_value=359,
                           step=6, value=0)
@@ -133,7 +134,8 @@ with st.expander('Profile'):
     with right_top_col:
 
 
-        Slice_img = disp_img[:, :, slice_profile-1].copy()
+        # Slice_img = disp_img[:, :, slice_profile-1].copy()
+        Slice_img = tomo.copy()
 
         profile = radon(Slice_img, [profile_ang], preserve_range=True)
         Slice_img = ndimage.rotate(Slice_img, -profile_ang, reshape=False)
