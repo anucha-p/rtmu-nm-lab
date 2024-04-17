@@ -167,7 +167,7 @@ with left_col:
         elif selected_filter ==  Filter_list[1]:
             with placeholder.container():
                 cutoff = st.slider("Cut-off:", min_value=0.05, max_value=1.0, step=0.05, value=0.5)
-                order = st.slider("Order:", min_value=1, max_value=10, step=1)
+                order = st.slider("Order:", min_value=1, max_value=10, step=1, value=3)
                 
         else:
             with placeholder.container():
