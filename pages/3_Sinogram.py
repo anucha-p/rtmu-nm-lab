@@ -42,14 +42,16 @@ with st.container():
     st.write("---")
 # ---- LOAD IMAGE ----
 BASE_DIR = Path(__file__).resolve().parent
-IMAGE_DIR = BASE_DIR / 'images/sino_proj' 
+PRJ_DIR = BASE_DIR / 'images/sino_proj/Shepp_Logan_Prj.npy'
+SLICE_DIR = BASE_DIR / 'images/sino_proj/Shepp_Logan.npy' 
 imageNames = [f.name for f in IMAGE_DIR.iterdir() if f.suffix=='.nii']
 
+# img_path = IMAGE_DIR / sample_image
 st.sidebar.header("Sinogram")
 
-with st.expander("CHANGE PROJECTION DATA"):
-    sample_image = st.selectbox('Choose sample projection', imageNames, index=0)
-    img_path = IMAGE_DIR / sample_image
+# with st.expander("CHANGE PROJECTION DATA"):
+#     sample_image = st.radio('Choose sample projection', imageNames, index=0)
+#     img_path = IMAGE_DIR / sample_image
 
 
 def read_dcm(imp_path):
@@ -97,6 +99,13 @@ def disp_prj(prj,theta):
     st.pyplot(fig)
 
 
+@st.cache_resource
+def init():
+    prj = np.load(PRJ_DIR)
+    tomo = np.load(SLICE_DIR)
+    return prj, tomo
+
+
 disp_img = read_nii(img_path)
 m, n, s = np.shape(disp_img)
 
@@ -104,9 +113,9 @@ arc = 360
 
 # Slice_img = np.array(Image.open(IMAGE_DIR / 'circle_square.bmp'))
 
-if "angle" not in st.session_state:
-    st.session_state.angle = 0
-    st.session_state.slice = int(m/2)
+# if "angle" not in st.session_state:
+#     st.session_state.angle = 0
+#     st.session_state.slice = int(m/2)
 
 
 

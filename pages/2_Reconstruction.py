@@ -293,12 +293,17 @@ with st.container():
                     recon_str = selected_recon_alg  
                     
             if recon_img is not None:
-                st.write("RECONSTRUCTED IMAGE")
-                disp_recon_img = (np.maximum(recon_img, 0) /
-                                recon_img.max()) * 255.0
-                disp_recon_img = np.uint8(disp_recon_img)
-                st.image(disp_recon_img, width=340)
+                # st.write("RECONSTRUCTED IMAGE")
+                # disp_recon_img = (np.maximum(recon_img, 0) /
+                #                 recon_img.max()) * 255.0
+                # disp_recon_img = np.uint8(disp_recon_img)
+                # st.image(recon_img, width=340)
                 st.write(recon_str)
+                fig_filt = px.imshow(recon_img, binary_string=True)
+                fig_filt.update_xaxes(showticklabels=False)
+                fig_filt.update_yaxes(showticklabels=False)
+                fig_filt.update_layout(width=340, title_text="RECONSTRUCTED IMAGE")
+                st.plotly_chart(fig_filt, use_container_width=False)
 
     st.divider()
 # with st.container():
