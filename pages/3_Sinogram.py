@@ -50,7 +50,7 @@ with st.container():
 # ---- LOAD IMAGE ----
 BASE_DIR = Path(__file__).resolve().parent
 PRJ_DIR = BASE_DIR / 'images/sino_proj/Shepp_Logan_Prj.npy'
-SLICE_DIR = BASE_DIR / 'images/sino_proj/Shepp_Logan.npy'
+SLICE_DIR = BASE_DIR / 'images/sino_proj/Shepp_Logan_copy.npy'
 SINO_DIR = BASE_DIR / 'images/sino_proj/shepp_logan_sinogram.npy'
 # imageNames = [f.name for f in IMAGE_DIR.iterdir() if f.suffix=='.nii']
 
