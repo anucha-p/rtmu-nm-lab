@@ -72,7 +72,7 @@ def gaussianKernel2(size, sigma, twoDimensional=True):
 
 # @st.cache_data(max_entries=1)
 def read_image(img_path):
-    if img_path.endswith('.dcm') or img_path.endswith('.DCM'):
+    if img_path.name.endswith('.dcm') or img_path.name.endswith('.DCM'):
         ds = dicom.dcmread(img_path)
         img = ds.pixel_array.astype(float)
         if img.ndim > 2:
@@ -130,14 +130,14 @@ with right_top_col:
     uploaded_file = st.file_uploader("or Upload image", accept_multiple_files=False, type=['dcm','DCM','jpg','JPG','jpeg','png'])
     if uploaded_file is not None:
         img_path = uploaded_file
-        st.write("filename:", uploaded_file.name)
+        # st.write("filename:", uploaded_file.name)
     else:
         img_path = os.path.join(IMAGE_DIR, sample_image)
         # img_path = IMAGE_DIR / sample_image
 
 st.write("---")
 
-img = read_image(img_path.name)
+img = read_image(img_path)
 m,n = np.shape(img)
 shape = np.shape(img)
 x = np.linspace(0,1,int(m/2))
