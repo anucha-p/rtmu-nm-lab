@@ -82,7 +82,9 @@ def read_image(img_path):
         img = np.uint8(scaled_image)
     else:
         img = np.array(Image.open(img_path).convert('L'))
-
+    return img
+        
+def pad_image(img):
     m, n = np.shape(img)
     # shape = np.shape(img)
 
@@ -130,14 +132,16 @@ with right_top_col:
     uploaded_file = st.file_uploader("or Upload image", accept_multiple_files=False, type=['dcm','DCM','jpg','JPG','jpeg','png'])
     if uploaded_file is not None:
         img_path = uploaded_file
+        img = read_image(img_path)
         # st.write("filename:", uploaded_file.name)
     else:
         img_path = os.path.join(IMAGE_DIR, sample_image)
+        img = np.array(Image.open(img_path).convert('L'))
         # img_path = IMAGE_DIR / sample_image
 
 st.write("---")
 
-img = read_image(img_path)
+img = pad_image(img)
 m,n = np.shape(img)
 shape = np.shape(img)
 x = np.linspace(0,1,int(m/2))
