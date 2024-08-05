@@ -137,7 +137,7 @@ with right_top_col:
 
 st.write("---")
 
-img = read_image(img_path)
+img = read_image(img_path.name)
 m,n = np.shape(img)
 shape = np.shape(img)
 x = np.linspace(0,1,int(m/2))
