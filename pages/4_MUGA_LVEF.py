@@ -43,7 +43,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 def load_model(model_path):
     with torch.no_grad():
         model = UNet(img_ch=1, output_ch=1)
-        state_dict = torch.load(model_path, weights_only=True)
+        state_dict = torch.load(model_path, weights_only=True, map_location = device)
         # remove saved deprecated running_* keys in InstanceNorm from the checkpoint
         for k in list(state_dict.keys()):
             if re.search(r'in\d+\.running_(mean|var)$', k):
