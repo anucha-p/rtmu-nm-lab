@@ -93,7 +93,7 @@ def text_field(label, columns=(1,2), **input_params):
 
     # Display field name with some alignment
     # c1.markdown("##")
-    original_title = f'<p style="font-size: 16px;">{label}</p>'
+    original_title = f'<p style="font-size: 14px;">{label}</p>'
     c1.markdown(original_title, unsafe_allow_html=True)
     # c1.markdown(f'''
     # **:red[{label}]**''')
@@ -128,30 +128,33 @@ def find_ED_ES_idx(muga, mask_np):
         lv_area = replace_zero_with_average(lv_area)
         # st.write(lv_area)
         bkg_idx = np.nanargmax(lv_count)
-        st.write(bkg_idx)
+        # st.write(bkg_idx)
         # ES_idx = np.nanargmin(sum_count)
         mask_ed = mask_np[bkg_idx, :, :]
         bkg_roi = auto_bkg_roi(mask_ed)
         bkg = muga*bkg_roi[np.newaxis,:,:]
-        bkg_count = np.sum(bkg, axis = (1,2))
+        # bkg_count = np.sum(bkg, axis = (1,2))
         
-        Norm_count = lv_count - (bkg_count*lv_area/np.sum(bkg_roi))
+        # Norm_count = lv_count - (bkg_count*lv_area/np.sum(bkg_roi))
         
         avg_bkg_count = np.sum(np.multiply(muga[bkg_idx,:,:], bkg_roi)) /np.sum(bkg_roi)
         
         
-        st.write(Norm_count)
-        st.write(avg_bkg_count)
+        Norm_count = lv_count - (lv_area*avg_bkg_count)
+        # st.write(Norm_count)
+        # st.write(avg_bkg_count)
 
         ED_idx = np.nanargmax(Norm_count)
-        st.write(ED_idx)
+        # st.write(ED_idx)
         ES_idx = np.nanargmin(Norm_count)
-        st.write(ES_idx)
+        # st.write(ES_idx)
         
         EF = (Norm_count[ED_idx] - Norm_count[ES_idx])*100/Norm_count[ED_idx]
-        st.write(EF)
-        
-    return ED_idx, ES_idx, Norm_count, EF, bkg_roi
+        # st.write(EF)
+    # bkg_image = (np.maximum(bkg[0,:,:], 0) / bkg[0,:,:].max()) * 255.0
+    # bkg_image = np.uint8(bkg_image)
+    # st.image(bkg_image)
+    return ED_idx, ES_idx, Norm_count, EF, bkg_roi, avg_bkg_count
 
 def dilate(mask,n):
   mask_dilate = np.copy(mask)
@@ -166,16 +169,16 @@ def mask_out_zeros(mask):
 
 def lvef(ED_image, ES_image, ED_roi, ES_roi):
     ED_count = np.sum(ED_roi*ED_image)
-    st.write(ED_count)
+    # st.write(ED_count)
     ES_count = np.sum(ES_roi*ES_image)
-    st.write(ES_count)
+    # st.write(ES_count)
     ED_bkg_roi = auto_bkg_roi(ED_roi)
     ES_bkg_roi = auto_bkg_roi(ES_roi)
     Norm_ED_count = ED_count - (np.sum(ED_bkg_roi*ED_image)*np.sum(ED_roi)/np.sum(ED_bkg_roi))
     Norm_ES_count = ES_count - (np.sum(ES_bkg_roi*ES_image)*np.sum(ES_roi)/np.sum(ES_bkg_roi))
-    st.write(Norm_ED_count)
-    st.write(Norm_ES_count)
-    st.write(np.sum(ED_bkg_roi*ED_image)/np.sum(ED_bkg_roi))
+    # st.write(Norm_ED_count)
+    # st.write(Norm_ES_count)
+    # st.write(np.sum(ED_bkg_roi*ED_image)/np.sum(ED_bkg_roi))
     average_bkg = np.sum(ED_bkg_roi*ED_image)/np.sum(ED_bkg_roi)
     avg_ED_count = ED_count/np.sum(ED_roi)
     avg_ES_count = ES_count/np.sum(ES_roi)
@@ -246,12 +249,13 @@ if dcm_img is not None:
     beat_accept = ds['GatedInformationSequence'][0]['DataInformationSequence'][0]['IntervalsAcquired'].value
     beat_reject = ds['GatedInformationSequence'][0]['DataInformationSequence'][0]['IntervalsRejected'].value
     heart_rate = ds['HeartRate'].value
-    st.write(num_frame.value)
+    # st.write(num_frame.value)
   
     df_acquire = pd.DataFrame(
                 {
-                    "Para": ["Heart Rate", "Time/Frame", "Beats Accepted", "Beats Rejected"],
+                    "Parameter": ["Heart Rate", "Time/Frame", "Beats Accepted", "Beats Rejected"],
                     "Value": [heart_rate, frame_time, beat_accept, beat_reject],
+                    "Unit": ["BPM", "msec", "beats", "beats"],
                 }
             )
 
@@ -260,20 +264,20 @@ if dcm_img is not None:
         col1, col2, col3 = st.columns((1, 1, 1), gap="medium")
         with col1:
             name = text_field("Patient Name:", value=ds.PatientName)
-            # patient_height = ds.get((0x0010, 0x1020))
-            # if patient_height is not None and patient_height.value > 0.0:
-            #     height = st.number_input("Height (m):", value=patient_height.value)
-            # else:
-            #     height = st.number_input("Height (m):", value=None, placeholder="Height in Meter")
+            patient_height = ds.get((0x0010, 0x1020))
+            if patient_height is not None and patient_height.value > 0.0:
+                height = text_field("Height (m):", value=patient_height.value)
+            else:
+                height = text_field("Height (m):", value=None, placeholder="Height in Meter")
             st.dataframe(df_acquire, hide_index=True)
         with col2:
             ptid = text_field("Patient ID:", value=ds.PatientID)
             patient_weight = ds.get((0x0010, 0x1030))
             if patient_weight is not None and patient_weight.value > 0.0:
                         # text_field('Weight(kg):', value=patient_weight.value)
-                weight = st.number_input("Weight (kg):", value=patient_weight.value)
+                weight = text_field("Weight (kg):", value=patient_weight.value)
             else:
-                weight = st.number_input("Weight (kg):", value=None, placeholder="Weight in kilogram")
+                weight = text_field("Weight (kg):", value=None, placeholder="Weight in kilogram")
 
             
         with col3:
@@ -281,9 +285,9 @@ if dcm_img is not None:
             if patient_age is not None:
                 age = patient_age.value
                 age = age.replace("Y", "")
-                age = st.number_input("Age:", value=float(age))
+                age = text_field("Age:", value=float(age))
             else:
-                age = st.number_input("Age:", value=None, placeholder="Years")
+                age = text_field("Age:", value=None, placeholder="Years")
             
             patient_sex = ds.get((0x0010, 0x0040))
             if patient_sex is not None:
@@ -295,13 +299,13 @@ if dcm_img is not None:
                 gender = st.radio("Gender:", ["Female", "Male"], index = index)
     with st.container():
         st.subheader("**:blue[Analysis Result]**")      
-        pred_ed_idx, pred_es_idx, Norm_count, EF, Bkg_roi = find_ED_ES_idx(dcm_img,mask)
+        pred_ed_idx, pred_es_idx, Norm_count, EF, Bkg_roi, avg_bkg_count = find_ED_ES_idx(dcm_img,mask)
 
         pred_ED_image = dcm_img[pred_ed_idx,:,:]
         pred_ES_image = dcm_img[pred_es_idx,:,:]
         pred_ED_roi = mask[pred_ed_idx,:,:]
         pred_ES_roi = mask[pred_es_idx,:,:]
-        
+        Norm_count = Norm_count /1000
         if pred_ed_idx == pred_es_idx:
             EF_unet = 0
             pred_ED_count = 0
@@ -315,18 +319,21 @@ if dcm_img is not None:
         # ed_frame = text_field('ED frame:', value=pred_ed_idx)
        
         col21, col22 = st.columns((2, 3), gap="medium")
+        ftime =  np.arange(frame_time,frame_time*25,frame_time) #s* float(frame_time)
+        # st.write(len(ftime))
         with col21:
             df = pd.DataFrame({
                     'Frame':range(1,25,1),
-                    'Count':np.round(Norm_count)})
+                    'msec':ftime,
+                    'kcounts':np.round(Norm_count, 3)})
             # line_chart = alt.Chart(df).mark_line(interpolate='basis').encode(
             #         alt.X('x', title='Frame'),
             #         alt.Y('y', title='Count'),
             #     )
             line_chart = alt.Chart(df).mark_line(interpolate='natural', point=True).encode(
-                    x='Frame',
-                    y='Count',
-                    tooltip=['Frame', 'Count'],
+                    x='msec',
+                    y='kcounts',
+                    tooltip=['Frame','msec', 'kcounts'],
                 )
             st.altair_chart(line_chart, use_container_width=True)
             # st.line_chart(Norm_count, x="Frame", y="Count")
@@ -365,9 +372,9 @@ if dcm_img is not None:
             col221.metric(label="Ejection Fraction (%)", value="%.2f" %EF, border=True)
             df = pd.DataFrame(
                 {
-                    "Phase": ["End Diastoric", "End Systoric"],
-                    "Frame Index": [ed_frame_idx, es_frame_idx],
-                    "Norm Count": [np.round(Norm_count[pred_ed_idx]), np.round(Norm_count[pred_es_idx])],
+                    "Parameters": ["Net Dias ROI Counts", "Net Syst ROI Counts", "Avg Bkgnd Counts"],
+                    "Value": [np.round(Norm_count[pred_ed_idx], 3), np.round(Norm_count[pred_es_idx], 3), np.round(avg_bkg_count,3)],
+                    "Unit": ['kcounts', 'kcounts','count/pixel'],
                 }
             )
             col222.dataframe(df, hide_index=True)
