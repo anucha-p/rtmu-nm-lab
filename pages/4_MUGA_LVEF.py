@@ -4,18 +4,18 @@ import scipy
 import streamlit as st
 import streamlit.components.v1 as components
 from pathlib import Path
-from PIL import Image
+# from PIL import Image
 from pydicom import dcmread
 import matplotlib.pyplot as plt
 import numpy as np
 import pydicom as dicom
 # import streamlit_nested_layout
-import nibabel as nib
-from scipy import ndimage
+# import nibabel as nib
+# from scipy import ndimage
 import torch
 from src.unet3d.model import UNet512, UNet                 
 import re
-import os
+# import os
 import altair as alt
 st.set_page_config(page_title="Auto MUGA EF Analysis", page_icon="✋🏻", layout="wide")
 

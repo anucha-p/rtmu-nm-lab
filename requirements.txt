@@ -13,3 +13,4 @@ streamlit_nested_layout
 scikit_image
 nibabel
 plotly
+torch
