@@ -145,8 +145,12 @@ with st.form("Projection"):
             # theta = np.array(range(start_ang_prj, start_ang_prj+ang_range , step_ang_prj))
             if rot_direct == 'CW':
                 theta = np.array(range(start_ang_prj, start_ang_prj+ang_range , step_ang_prj))
+                ang_dir = 'clockwise'
+                wrapped_range = [(start_ang_prj + i) % 360 for i in range(0, ang_range, step_ang_prj)]
             else:
                 theta = np.array(range(start_ang_prj, start_ang_prj-ang_range , -step_ang_prj))
+                ang_dir = 'counterclockwise'
+                wrapped_range = [(start_ang_prj - i) % 360 for i in range(0, ang_range, step_ang_prj)]
             
             # ang_idx = range(0, 120, int(step_ang_prj/3))
             # ang_idx = list(ang_idx)
@@ -157,9 +161,10 @@ with st.form("Projection"):
             # start = 90
             # step = 3
             # ang_range = 360
-            wrapped_range = [(start_ang_prj + i) % 360 for i in range(0, ang_range, step_ang_prj)]
-            ang_idx = range(0, 360, 3)
+            # wrapped_range = [(start_ang_prj + i) % 360 for i in range(0, ang_range, step_ang_prj)]
+            ang_idx = range(357, -1, -3)
             ang_idx = list(ang_idx)
+            # ang_idx = [(180 + i) % 360 for i in range(0, 360, 3)]
             indices = [ang_idx.index(value) for value in wrapped_range if value in ang_idx]
             prj_ = np.zeros((len(indices), np.shape(prj)[1], np.shape(prj)[2]), dtype=int)
             for i in range(len(indices)):
@@ -195,7 +200,7 @@ with st.form("Projection"):
                 polar = dict(
                     radialaxis = dict(range=[0, 1], showticklabels=False, ticks=''),
                     angularaxis = dict(rotation = 90,
-                    direction = "clockwise", tickfont_size=8)
+                    direction = 'clockwise', tickfont_size=8)
             ))
             fig.update_layout(width=500, height=500)
             st.plotly_chart(fig, use_container_width=True, interactivity=False)
