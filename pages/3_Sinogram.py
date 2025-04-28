@@ -126,8 +126,86 @@ arc = 360
 # if "angle" not in st.session_state:
 #     st.session_state.angle = 0
 #     st.session_state.slice = int(m/2)
+st.header("Projection")
+with st.form("Projection"):
+    left_low_col, right_low_col = st.columns([1, 1], gap="large")
 
+    with left_low_col:
+        start_ang_prj = st.radio(
+            "Start angle (ϴ):", [0, 45, 90, 180], index=0, key='start_ang_prj', horizontal=True)
+        step_ang_prj = st.radio(
+            "Step angle (ϴ):", [3, 6, 12], index=2, key='step_ang_prj', horizontal=True)
+        ang_range = st.radio(
+            "Angular range (ϴ):", [180, 360], index=1, key='ang_range', horizontal=True)
+        rot_direct = st.radio(
+            "Direction:", ["CW", "CCW"], index=1, key='rot_direction', horizontal=True)
+        submitted = st.form_submit_button("Apply")
+        if submitted:
 
+            # theta = np.array(range(start_ang_prj, start_ang_prj+ang_range , step_ang_prj))
+            if rot_direct == 'CW':
+                theta = np.array(range(start_ang_prj, start_ang_prj+ang_range , step_ang_prj))
+            else:
+                theta = np.array(range(start_ang_prj, start_ang_prj-ang_range , -step_ang_prj))
+            
+            # ang_idx = range(0, 120, int(step_ang_prj/3))
+            # ang_idx = list(ang_idx)
+            # selected_index = ang_idx.index(start_ang_prj)  # Assuming 0 is the selected index
+            # ang_idx = ang_idx[selected_index:] + ang_idx[:selected_index]
+            # prj_ = prj[ang_idx,:,:]
+            
+            # start = 90
+            # step = 3
+            # ang_range = 360
+            wrapped_range = [(start_ang_prj + i) % 360 for i in range(0, ang_range, step_ang_prj)]
+            ang_idx = range(0, 360, 3)
+            ang_idx = list(ang_idx)
+            indices = [ang_idx.index(value) for value in wrapped_range if value in ang_idx]
+            prj_ = np.zeros((len(indices), np.shape(prj)[1], np.shape(prj)[2]), dtype=int)
+            for i in range(len(indices)):
+                prj_[i, :, :] = prj[indices[i], :, :]
+                        
+            r = np.ones(np.shape(theta))
+            fig = go.Figure()
+            trace=go.Scatterpolar(r=r,
+                                theta=theta,
+                                opacity=1,
+                                mode = 'markers',)
+            fig.add_trace(trace)
+            fig.update_xaxes(showticklabels=False).update_yaxes(showticklabels=False)
+            fig.update_layout(coloraxis_showscale=False)
+            fig.update_layout(plot_bgcolor='rgba(0,0,0,0)')
+            fig.add_layout_image(
+                dict(
+                    source=Image.open(BASE_DIR / 'images/sino_proj/shepp_logan.png'),
+                    xref="x domain",
+                    yref="y domain",
+                    x=0.5,
+                    y=0,
+                    sizex=1,
+                    sizey=1,
+                    sizing="contain",
+                    xanchor="center",
+                    yanchor="bottom",
+                    opacity=0.5,
+                    layer="above")
+            )
+            fig.update_layout(
+                template=None,
+                polar = dict(
+                    radialaxis = dict(range=[0, 1], showticklabels=False, ticks=''),
+                    angularaxis = dict(rotation = 90,
+                    direction = "clockwise", tickfont_size=8)
+            ))
+            fig.update_layout(width=500, height=500)
+            st.plotly_chart(fig, use_container_width=True, interactivity=False)
+
+            with right_low_col:
+                fig_sino = px.imshow(prj_, animation_frame=0, binary_string=True, labels=dict(animation_frame="Projection"))
+                fig_sino.update_xaxes(showticklabels=False).update_yaxes(showticklabels=False)
+                fig_sino.update_layout(coloraxis_showscale=False)
+                st.plotly_chart(fig_sino, use_container_width=True)
+            
 
 # with st.containers('Profile'):
 st.header("Profile")
@@ -135,19 +213,9 @@ with st.form("Profile"):
     left_top_col, right_top_col = st.columns([1,1], gap="large")
     with left_top_col:
 
-
-        # slice_profile = st.number_input(
-        #     "Slice:", min_value=1, max_value=s, step=5, value=int(s/2), key='slice_prof')
-
         profile_ang = st.number_input("Angle (ϴ):", min_value=0, max_value=359,
                         step=6, value=0)
-        # if st.button("Clear All"):
-        #     # Clears all st.cache_resource caches:
-        #     st.cache_resource.clear()
-        # if st.button("Clear All"):
-        #     # Clears all st.cache_resource caches:
-        #     st.cache_resource.clear()
-
+        
         submitted = st.form_submit_button("Apply")
         if submitted:
 
@@ -209,27 +277,6 @@ with st.form("Profile"):
                         ),)
                     st.plotly_chart(fig, use_container_width=True)
         
-        
-        # fig, (ax1, ax2) = plt.subplots(2, 1)
-        # fig.set_figwidth(8)
-        
-        # ax1.imshow(Slice_img, cmap="gray")
-
-        # ax2.plot(range(n_x), profile)
-        # asp = np.diff(ax2.get_xlim())[0] / np.diff(ax2.get_ylim())[0]
-        # ax2.set_aspect(asp)
-        
-        # plt.tight_layout()
-        # st.pyplot(fig)
-
-    # fig2 = plt.figure()
-    # axes_coords = [0.1, 0.1, 0.8, 0.8]
-    # ax6 = fig2.add_axes(axes_coords)
-    # Img_profile = np.swapaxes(profile, 0, 1)
-    # ax6.imshow(Img_profile, cmap="gray")
-    # ax6.axis('off')
-    # st.pyplot(fig2)
-
 # with st.expander('Sinogram'):
 st.header("Sinogram")
 with st.form("Sinogram"):
@@ -340,195 +387,6 @@ with st.form("Sinogram"):
                 st.plotly_chart(fig_sino, use_container_width=False)
                 
                 
-st.header("Projection")
-with st.form("Projection"):
-    left_low_col, right_low_col = st.columns([1, 1], gap="large")
-
-    with left_low_col:
-        start_ang_prj = st.radio(
-            "Start angle (ϴ):", [0, 45, 90, 180], index=0, key='start_ang_prj', horizontal=True)
-        step_ang_prj = st.radio(
-            "Step angle (ϴ):", [3, 6, 12], index=2, key='step_ang_prj', horizontal=True)
-        ang_range = st.radio(
-            "Angular range (ϴ):", [180, 360], index=1, key='ang_range', horizontal=True)
-        rot_direct = st.radio(
-            "Direction:", ["CW", "CCW"], index=1, key='rot_direction', horizontal=True)
-        submitted = st.form_submit_button("Apply")
-        if submitted:
-        
-        # theta_prj = np.array(range(start_ang_prj, ang_range, step_ang_prj))
-        # prj = get_projection(disp_img, theta_prj)
-
-        # fig7 = plt.figure()
-        # axes_coords = [0.1, 0.1, 0.8, 0.8]
-        # ax1 = fig7.add_axes(axes_coords)
-        # temp_img = disp_img[:, :, 64].copy()
-        # ax1.imshow(temp_img, cmap="gray")
-        # ax1.axis('off')
-
-        # ax2 = fig7.add_axes(axes_coords, projection='polar')
-        # ax2.patch.set_alpha(0)
-        # ax2.set_theta_zero_location("S")
-        # # ax2.set_theta_direction(-1)
-        # theta_prj_r = np.pi * theta_prj/180
-        # r = np.ones(np.shape(theta_prj_r))
-        # ax2.scatter(theta_prj_r, r,
-        #             color="tab:orange", lw=1,)
-        # ax2.set_rticks([0.1, 1])  # Less radial ticks
-        # ax2.set_rlabel_position(-22.5)
-
-        # st.pyplot(fig7)
-            
-            if rot_direct == 'CW':
-                theta = np.array(range(start_ang_prj, start_ang_prj+ang_range , step_ang_prj))
-            else:
-                theta = np.array(range(start_ang_prj, start_ang_prj-ang_range , -step_ang_prj))
-            
-            ang_idx = range(0, 120, int(step_ang_prj/3))
-            # ang_idx = int(profile_ang*119/359)
-            prj_ = prj[ang_idx,:,:]
-            
-            r = np.ones(np.shape(theta))
-            fig = go.Figure()
-            trace=go.Scatterpolar(r=r,
-                                theta=theta,
-                                opacity=1,
-                                mode = 'markers',)
-            # fig2 = px.scatter_polar(r=r, theta=theta, direction="clockwise")
-            fig.add_trace(trace)
-            fig.update_xaxes(showticklabels=False).update_yaxes(showticklabels=False)
-            fig.update_layout(coloraxis_showscale=False)
-            fig.update_layout(plot_bgcolor='rgba(0,0,0,0)')
-            fig.add_layout_image(
-                dict(
-                    source=Image.open(BASE_DIR / 'images/sino_proj/shepp_logan.png'),
-                    xref="x domain",
-                    yref="y domain",
-                    x=0.5,
-                    y=0,
-                    sizex=1,
-                    sizey=1,
-                    sizing="contain",
-                    xanchor="center",
-                    yanchor="bottom",
-                    opacity=0.5,
-                    layer="above")
-            )
-            fig.update_layout(
-            template=None,
-            polar = dict(
-            radialaxis = dict(range=[0, 1], showticklabels=False, ticks=''),
-            angularaxis = dict(rotation = 90,
-                direction = "clockwise", tickfont_size=8)
-            ))
-            fig.update_layout(width=500, height=500)
-            st.plotly_chart(fig, use_container_width=True)
-
-            with right_low_col:
-                fig_sino = px.imshow(prj_, animation_frame=0, binary_string=True, labels=dict(animation_frame="Projection"))
-                fig_sino.update_xaxes(showticklabels=False).update_yaxes(showticklabels=False)
-                fig_sino.update_layout(coloraxis_showscale=False)
-                st.plotly_chart(fig_sino, use_container_width=True)
-            
-            # # prj_ang = st.number_input(
-            # #     "Projection:", min_value=0, max_value=len(theta_prj), step=1, value=0, key='prj_ang')
-            # prj_ang = st.selectbox("Projection angle (ϴ):", range(len(theta)),
-            #                        format_func=lambda x: theta[x], key='prj_ang')
-            # # sino_p = np.zeros([m, theta_prj.shape[0], n])
-            # # # prj = np.zeros([theta_prj.shape[0], m, n])
-
-            # # for i in range(n):
-            # #     sino_p[:, :, i] = radon(disp_img[:,:,i], theta_prj, preserve_range=True)
-
-            # # prj = np.swapaxes(sino_p, 0, 1)
-            # # prj = np.swapaxes(prj, 1, 2)
-            # fig5, ax7 = plt.subplots()
-            # ax7.imshow(prj[prj_ang, :, :], cmap="gray")
-            # ax7.set_xlabel('Bin (x)')
-            # ax7.set_ylabel('Slice (z)')
-            # st.pyplot(fig5)
-        
-        # disp_prj(prj, theta_prj)
-
-# thetas = range(0, 180, 6)
-# with st.expander('Projection, Profile, Sinogram'):
-#     # angle = st.selectbox("Projection angle (ϴ):", theta, index=0)
-#     left, right = st.columns(2, gap="large")
-#     with left:
-#         angle = st.selectbox("Projection angle (ϴ):", range(len(thetas)),
-#                          format_func=lambda x: thetas[x])
-#     with right:
-#         slice_loc = st.number_input(
-#             "Slice:", min_value=1, max_value=s, step=5, value=int(s/2), key='slic_loc')
-#     left_top_col, right_top_col = st.columns(2, gap="large")
-#     with left_top_col:
-#         prj_n = get_projection(disp_img, np.array(thetas))
-#         proj_img = prj_n[angle, :, :].copy()
-
-#         proj_img[slice_loc, 0:5] = proj_img.max()
-
-#         fig, ax = plt.subplots()
-#         fig.set_figwidth(5)
-#         ax.imshow(proj_img, cmap="gray")
-#         ax.set_xlabel('Bin (x)')
-#         ax.set_ylabel('Slice (z)')
-#         st.subheader('Projection')
-#         st.caption('Angle ϴ: ' + str(angle))
-#         st.pyplot(fig)
-
-#         temp_img = disp_img[:, :, int(s/2)].copy()
-#         fig = plt.figure()
-#         axes_coords = [0.1, 0.1, 0.8, 0.8]
-#         ax4 = fig.add_axes(axes_coords)
-#         ax4.imshow(temp_img, cmap="gray")
-#         ax4.axis('off')
-        
-#         ax3 = fig.add_axes(axes_coords, projection='polar')
-#         ax3.patch.set_alpha(0)
-#         ax3.set_theta_zero_location("S")
-#         # ax3.set_theta_direction(-1)
-#         th_r = np.pi * thetas[angle]/180
-#         r = 1.0
-#         ax3.scatter(th_r, r,
-#                     color="tab:orange", lw=1,)
-#         ax3.set_rticks([0.1, 1])  # Less radial ticks
-#         ax3.set_rlabel_position(-22.5)
-
-#         st.pyplot(fig)
-
-
-#     with right_top_col:
-#         # Slice_img = disp_img[:, :, slice_loc-1].copy()
-#         # sino = radon(Slice_img, thetas, preserve_range=True)
-#         sino = prj_n[:, slice_loc-1, :].copy()
-#         # sino = np.swapaxes(sino, 0, 1)
-#         profile = sino[angle, :].copy()
-#         sino[angle, 0:5] = sino.max()
-#         st.subheader('Sinogram')
-#         st.caption('Slice: ' + str(slice_loc))
-#         fig = plt.figure()
-#         axes_coords = [0.1, 0.1, 0.8, 0.8]
-#         ax1 = fig.add_axes(axes_coords)
-#         fig.set_figwidth(8)
-#         st.caption(
-#             'Start angle: 0 degree, Step angle: 6 degree, Angular range: 180 degree')
-
-#         ax1.imshow(sino, cmap="gray")
-#         ax1.set_xlabel('Bin (x)')
-#         ax1.set_ylabel('Angle (ϴ)')
-#         ax1.axis('off')
-#         st.pyplot(fig)
-
-#         st.subheader('Profile')
-#         st.caption('Angle ϴ: ' + str(angle) + ', Slice: ' + str(slice_loc))
-#         fig2 = plt.figure()
-#         ax2 = fig2.add_axes(axes_coords)
-#         ax2.plot(profile)
-#         ax2.set_xlabel('Bin (x)')
-#         ax2.set_ylabel('Counts')
-#         asp = np.diff(ax2.get_xlim())[0] / np.diff(ax2.get_ylim())[0]
-#         ax2.set_aspect(asp)
-#         st.pyplot(fig2)
 
 st.write("---")
 st.caption("Anucha Chaichana")
