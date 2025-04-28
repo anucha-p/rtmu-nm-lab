@@ -228,8 +228,9 @@ with st.form("Profile"):
 
                     Slice_img = tomo.copy()
                     Slice_img = ndimage.rotate(Slice_img, -profile_ang, reshape=False)
-                    ang_idx = int(profile_ang*119/359)
-                    profile = sinogram[ang_idx, :]
+                    profile = np.sum(Slice_img, axis=0)/Slice_img.shape[1]
+                    # ang_idx = int(profile_ang*119/359)
+                    # profile = sinogram[ang_idx, :]
 
                     
                     fig_org = px.imshow(Slice_img, binary_string=True)

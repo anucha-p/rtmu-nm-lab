@@ -251,7 +251,7 @@ with st.container():
         
         selected_recon_alg = st.radio('Reconstruction Algorithm:', Recon_Alg_List, index=0)
 
-        with st.form("Filter parameter"):    
+        with st.form("Reconstruction parameter"):    
             # sino = img[:,slice_loc,:].copy()
             # sino = np.swapaxes(sino,0,1)
             placeholder = st.empty()
@@ -260,12 +260,12 @@ with st.container():
                 with placeholder.container():
                     # rcol1, rcol2 = st.columns(2)
                     # with rcol1:
-                    n_ite = st.number_input('Number of iteration:', min_value=1)
+                    n_ite = st.number_input('Iteration:', min_value=1, max_value=20)
                     # with rcol2:
-                    n_subsets = st.number_input('Number of subsets:', min_value = 1, help="Number of subsets should be a divisor of the total number of projections.")
+                    n_subsets = st.number_input('Subset:', min_value = 1, max_value=10, help="Number of subsets should be a divisor of the total number of projections.")
             elif selected_recon_alg ==  Recon_Alg_List[1]:
                 with placeholder.container():
-                    n_ite = st.number_input('Number of iteration:', min_value=1)
+                    n_ite = st.number_input('Iteration:', min_value=1, max_value=20)
                         
 
             # elapsed = (time.time() - t)*m
