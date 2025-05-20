@@ -3,6 +3,7 @@ from PIL import Image, ImageEnhance, ImageFilter
 import numpy as np
 import os
 from pathlib import Path
+import io
 
 # --- CONFIG ---
 st.set_page_config(page_title="X-ray Simulator", page_icon="☢️", layout="centered")
@@ -97,6 +98,8 @@ st.markdown("ปรับค่าการถ่ายภาพรังสี�
 
 col1, col2 = st.columns(2)
 
+import matplotlib.pyplot as plt
+
 with col1:
     st.subheader("📷 ภาพต้นฉบับ")
     st.image(original_img, use_container_width=True)
@@ -104,3 +107,20 @@ with col1:
 with col2:
     st.subheader("🔬 ภาพจำลอง")
     st.image(img, use_container_width=True)
+
+    # # Add color bar to demonstrate contrast
+    # st.markdown("**Color Bar (Pixel Intensity):**")
+    # fig, ax = plt.subplots(figsize=(5, 0.5))
+    # fig.subplots_adjust(bottom=0.5)
+
+    # cmap = plt.get_cmap('gray')
+    # norm = plt.Normalize(vmin=0, vmax=255)
+    # cb1 = plt.colorbar(
+    #     plt.cm.ScalarMappable(norm=norm, cmap=cmap),
+    #     cax=ax, orientation='horizontal'
+    # )
+    # cb1.set_label('Pixel Intensity')
+    # buf = io.BytesIO()
+    # plt.savefig(buf, format="png", bbox_inches='tight', pad_inches=0.1)
+    # plt.close(fig)
+    # st.image(buf.getvalue())
