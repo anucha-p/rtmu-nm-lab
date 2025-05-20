@@ -43,20 +43,39 @@ mAs = st.sidebar.slider(
 st.sidebar.markdown("---")
 
 # คำนวณค่าทางเทคนิค
-kvp_factor = 0.25 + ((kvp - 60) / (140 - 60)) * (1.75 - 0.25)  # map 60–140 → 0.25–1.75
+
+# Map kVp (60–140) → contrast_factor (1.3 → 0.7)
+kvp_min, kvp_max = 60, 140
+# contrast_factor = 0.25 + ((kvp - kvp_min) / (kvp_max - kvp_min)) * (1.75 - 0.25)  # map 60–140 → 0.25–1.75
+contrast_factor = 2.0 - ((kvp - kvp_min) / (kvp_max - kvp_min)) * (2.0 - 0.01)
 
 # brightness_factor = mAs / 6.0  # map 0–1200 mA to brightness factor
 # brightness_factor = 1.0 - min(mAs / 1000, 1.0) * 0.8  # maps 0–max_mAs → 1.0–0.2
-brightness_factor = 1.25 - ((mAs - 2) / (10 - 2)) * (1.25 - 0.75)
-# st.sidebar.markdown(f"**Brightness Factor:** `{brightness_factor:.2f}`")
-# st.sidebar.markdown(f"**kVp Factor:** `{kvp_factor:.2f}`")
+mas_min, mas_max = 2, 10
+brightness_factor = 1.25 - ((mAs - mas_min) / (mas_max - mas_min)) * (1.25 - 0.75)
+st.sidebar.markdown(f"**Brightness Factor:** `{brightness_factor:.2f}`")
+st.sidebar.markdown(f"**contrast_factor:** `{contrast_factor:.2f}`")
 
 
 st.sidebar.markdown("---")
 
 # --- Image Simulation ---
 img = original_img.copy()
-img = ImageEnhance.Contrast(img).enhance(kvp_factor)
+img = ImageEnhance.Contrast(img).enhance(contrast_factor)
+
+# # Adjust brightness based on contrast_factor
+# if contrast_factor > 1.0:
+#     # Higher contrast, lower brightness slightly
+#     img = ImageEnhance.Brightness(img).enhance(0.95)
+# elif contrast_factor < 1.0:
+#     # Lower contrast, increase brightness slightly
+#     img = ImageEnhance.Brightness(img).enhance(1.05)
+
+# Normalize image before enhancing brightness
+# img_array = np.array(img).astype(np.float32)
+# img_array = (img_array - img_array.min()) / (img_array.max() - img_array.min() + 1e-8) * 255
+# img = Image.fromarray(img_array.astype(np.uint8))
+
 img = ImageEnhance.Brightness(img).enhance(brightness_factor)
 
 # Add noise if mAs ต่ำ
