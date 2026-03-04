@@ -11,7 +11,7 @@ PyYAML
 scikit_image
 scipy
 SimpleITK
-streamlit
+streamlit>=1.21.0
 streamlit_extras
 torch
 tqdm
