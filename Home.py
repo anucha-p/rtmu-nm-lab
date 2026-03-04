@@ -20,5 +20,5 @@ st.markdown(
 
 st.divider()
 st.caption("Anucha Chaichana") 
-st.caption("anucha.cha@mahidol.edu")
+st.caption("anucha.cha@mahidol.ac.th")
 
