@@ -3,3 +3,5 @@ app_old.py
 .venv
 Sample_images
 requirements_old.txt
+/venv
+nohup.out

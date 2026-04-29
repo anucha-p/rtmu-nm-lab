@@ -205,23 +205,6 @@ with left_col:
                 with st.container():
                     st.altair_chart(line_chart, use_container_width=True)
                 
-                # gauss_2D = gaussianKernel2(ksize, sigma)
-                # fig = go.Figure()
-                # trace=go.Scatter(x=np.linspace(0,ksize,ksize, endpoint=False),
-                #     y=np.squeeze(gauss_2D[int(ksize/2),:]),
-                #     line=dict(width=2),
-                #     showlegend=False)
-                # fig.add_trace(trace)
-                # fig.update_layout(title='Gaussian Kernel',
-                #    xaxis_title='Pixe;',
-                #    yaxis_title='Kernel weight')
-                # st.plotly_chart(fig, use_container_width=True)
-                
-                # g_kernel = px.imshow(gauss_2D, binary_string=True)
-                # g_kernel.update_xaxes(showticklabels=False)
-                # g_kernel.update_yaxes(showticklabels=False)
-                # g_kernel.update_layout(width=100)
-                # st.plotly_chart(g_kernel, use_container_width=True)
                 
                 
             else:
@@ -278,14 +261,6 @@ with right_col:
         fig_filt.update_layout(width=340, title_text="Filtered Image")
         st.plotly_chart(fig_filt, use_container_width=False)
         
-        # fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.0025)
-        # fig.add_trace(fig_org.data[0], 1, 1)
-        # fig.add_trace(fig_filt.data[0], 2, 1)
-        # fig.update_xaxes(showticklabels=False)
-        # fig.update_yaxes(showticklabels=False)
-        # fig.update_layout(coloraxis_showscale=False)
-        # fig.update_layout(width=340, height=700)
-        # st.plotly_chart(fig, use_container_width=True)
     
         if selected_filter == Filter_list[0]:
             st.write(selected_filter, 'FWHM', fwhm)

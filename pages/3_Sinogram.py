@@ -203,7 +203,7 @@ with st.form("Projection"):
                     direction = 'clockwise', tickfont_size=8)
             ))
             fig.update_layout(width=500, height=500)
-            st.plotly_chart(fig, use_container_width=True, interactivity=False)
+            st.plotly_chart(fig, use_container_width=True)
 
             with right_low_col:
                 fig_sino = px.imshow(prj_, animation_frame=0, binary_string=True, labels=dict(animation_frame="Projection"))

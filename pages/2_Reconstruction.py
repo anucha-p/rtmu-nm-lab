@@ -231,19 +231,8 @@ with st.container():
 
             st.caption('Projection')
             st.image(prj_path, width=340, clamp=True)
-            # prj = np.array(Image.open(prj_path).convert('L'))
-            # fig_prj = px.imshow(prj, binary_string=True)
-            # fig_prj.update_xaxes(showticklabels=False)
-            # fig_prj.update_yaxes(showticklabels=False)
-            # fig_prj.update_layout(title_text="Projection")
-            # st.plotly_chart(fig_prj, use_container_width=True)
             st.caption('Sinogram')
             st.image(disp_img, width=340, clamp=True)
-            # fig_sino = px.imshow(sino.T, binary_string=True)
-            # fig_sino.update_xaxes(showticklabels=False)
-            # fig_sino.update_yaxes(showticklabels=False)
-            # fig_sino.update_layout(title_text="Sinogram")
-            # st.plotly_chart(fig_sino, use_container_width=True)
 
 
     with mid_col:
