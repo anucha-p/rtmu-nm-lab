@@ -5,3 +5,4 @@ Sample_images
 requirements_old.txt
 /venv
 nohup.out
+streamlit_out.log
