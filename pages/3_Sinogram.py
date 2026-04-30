@@ -127,6 +127,11 @@ arc = 360
 #     st.session_state.angle = 0
 #     st.session_state.slice = int(m/2)
 st.header("Projection")
+st.info("""
+**Projections** are 2D images captured by the detector at different angles as it rotates around the patient. 
+Adjust the settings below to see how different angular ranges and step sizes affect the data collection process.
+The polar plot on the left shows the current detector position, and the animation on the right shows the sequence of 2D images acquired.
+""")
 with st.form("Projection"):
     left_low_col, right_low_col = st.columns([1, 1], gap="large")
 
@@ -214,6 +219,11 @@ with st.form("Projection"):
 
 # with st.containers('Profile'):
 st.header("Profile")
+st.info("""
+A **Profile** (or Line Integral) represents the total attenuation of X-rays along a specific path through the object. 
+In a 2D projection image, each horizontal row represents a profile of a single 'slice' of the patient. 
+The red dashed line on the **Projection Image** shows which specific slice we are looking at.
+""")
 with st.form("Profile"):
     left_top_col, right_top_col = st.columns([1,1], gap="large")
     with left_top_col:
@@ -304,6 +314,12 @@ with st.form("Profile"):
         
 # with st.expander('Sinogram'):
 st.header("Sinogram")
+st.info("""
+A **Sinogram** is a 2D image where one axis represents the detector position (x) and the other represents the rotation angle (θ). 
+It is formed by stacking 1D profiles from every angle.
+- **Sinogram with gaps:** Shows the data in the full 360° angular space. Empty space represents angles where no data was collected.
+- **Sinogram without gaps:** Shows only the collected projections compressed together.
+""")
 with st.form("Sinogram"):
     left_mid_col, right_mid_col = st.columns([1,1], gap="large")
 
@@ -432,4 +448,4 @@ with st.form("Sinogram"):
 
 st.write("---")
 st.caption("Anucha Chaichana")
-st.caption("anucha.cha@mahidol.edu")
+st.caption("anucha.cha@mahidol.ac.th")

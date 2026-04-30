@@ -451,4 +451,4 @@ if display and (filt_img is not None):
     
 st.write("---")
 st.caption("Anucha Chaichana") 
-st.caption("anucha.cha@mahidol.edu")
+st.caption("anucha.cha@mahidol.ac.th")
