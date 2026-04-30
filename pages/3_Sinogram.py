@@ -227,33 +227,52 @@ with st.form("Profile"):
             with right_top_col:
 
                     Slice_img = tomo.copy()
-                    Slice_img = ndimage.rotate(Slice_img, -profile_ang, reshape=False)
+                    Slice_img = ndimage.rotate(Slice_img, profile_ang, reshape=False)
                     profile = np.sum(Slice_img, axis=0)/Slice_img.shape[1]
                     # ang_idx = int(profile_ang*119/359)
                     # profile = sinogram[ang_idx, :]
 
                     
-                    fig_org = px.imshow(Slice_img, binary_string=True)
-                    fig_org.update_layout(
-                        autosize=False,
-                        width=340,
-                        height=500,
-                        margin=dict(
-                            l=5,
-                            r=5,
-                            b=5,
-                            t=5,
-                            pad=4
-                        ),)
-                    st.plotly_chart(fig_org, use_container_width=True)
+                    col_p1, col_p2 = st.columns(2)
+                    with col_p1:
+                        st.write("Rotated Slice")
+                        fig_org = px.imshow(Slice_img, binary_string=True)
+                        fig_org.update_layout(
+                            autosize=False,
+                            width=340,
+                            height=400,
+                            margin=dict(l=5, r=5, b=5, t=5, pad=4),
+                        )
+                        st.plotly_chart(fig_org, use_container_width=True)
                     
+                    with col_p2:
+                        st.write("Projection Image (2D)")
+                        # Find projection index: prj has 120 angles, every 3 deg, reversed (index 119 is 0 deg)
+                        target_ang = (profile_ang // 3) * 3
+                        if target_ang >= 360: target_ang = 0
+                        prj_idx = 119 - (target_ang // 3)
+                        prj_idx = max(0, min(119, prj_idx))
+                        
+                        prj_img = prj[prj_idx, :, :]
+                        fig_prj = px.imshow(prj_img, binary_string=True)
+                        # Highlight the row corresponding to the slice (assuming middle slice)
+                        fig_prj.add_hline(y=n_z//2, line_dash="dash", line_color="red")
+                        fig_prj.update_layout(
+                            autosize=False,
+                            width=340,
+                            height=400,
+                            margin=dict(l=5, r=5, b=5, t=5, pad=4),
+                        )
+                        st.plotly_chart(fig_prj, use_container_width=True)
+                    
+                    st.write("Profile (1D Image)")
                     profile_img = profile[np.newaxis, ...]
                     fig_profle = px.imshow(profile_img, binary_string=True)
 
                     fig_profle.update_layout(
                         autosize=False,
                         width=340,
-                        height=100,
+                        height=80,
                         margin=dict(
                             l=5,
                             r=5,
@@ -263,7 +282,7 @@ with st.form("Profile"):
                         ),)
                     st.plotly_chart(fig_profle, use_container_width=True)
                     
-                    
+                    st.write("Profile (Line Plot)")
                     fig = go.Figure()
                     trace=go.Scatter(x=np.linspace(0,n_x,n_x, endpoint=False),
                             y=profile,
@@ -380,17 +399,34 @@ with st.form("Sinogram"):
                 # plt.tight_layout()
                 # st.pyplot(fig4)
                 
-                ang_idx = range(0, 359, step_angle)
+                ang_idx = theta
                 # ang_idx = theta*119/359
                 # ang_idx = ang_idx.astype(int).item()
                 disp_sino = np.zeros(np.shape(sinogram))
                 disp_sino[ang_idx, :] = sinogram[ang_idx, :]
-                fig_sino = px.imshow(disp_sino, color_continuous_scale='gray')
-                fig_sino.update_layout(width=500, height=1000)
-                fig_sino.update_layout(coloraxis_showscale=False)
-                # fig_sino.update_xaxes(showticklabels=False)
-                # fig_sino.update_yaxes(showticklabels=False)
-                st.plotly_chart(fig_sino, use_container_width=False)
+
+                sino_col1, sino_col2 = st.columns(2)
+                with sino_col1:
+                    st.write("Sinogram with gaps")
+                    fig_sino = px.imshow(disp_sino, color_continuous_scale='gray')
+                    fig_sino.update_layout(width=400, height=800)
+                    fig_sino.update_layout(coloraxis_showscale=False)
+                    st.plotly_chart(fig_sino, use_container_width=True)
+
+                with sino_col2:
+                    st.write("Sinogram without gaps")
+                    gapless_sino = sinogram[ang_idx, :]
+                    fig_gapless = px.imshow(gapless_sino, color_continuous_scale='gray')
+                    fig_gapless.update_layout(width=400, height=800)
+                    fig_gapless.update_layout(coloraxis_showscale=False)
+                    st.plotly_chart(fig_gapless, use_container_width=True)
+                
+                # fig_sino = px.imshow(disp_sino, color_continuous_scale='gray')
+                # fig_sino.update_layout(width=500, height=1000)
+                # fig_sino.update_layout(coloraxis_showscale=False)
+                # # fig_sino.update_xaxes(showticklabels=False)
+                # # fig_sino.update_yaxes(showticklabels=False)
+                # st.plotly_chart(fig_sino, use_container_width=False)
                 
                 
 
