@@ -1,5 +1,5 @@
 from skimage.transform import radon, iradon
-# from skimage.filters import gaussian
+from skimage.filters import gaussian
 # from skimage.draw import disk
 import streamlit as st
 # from pathlib import Path
@@ -13,7 +13,11 @@ import altair as alt
 import time
 import os
 import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from PIL import Image
+
+from src.Filters import *
 
 st.set_page_config(page_title="Reconstruction", page_icon="✋🏻", layout="wide")
 
@@ -57,96 +61,98 @@ imageNames = [f for f in file_name if f.endswith('.npy')]
 st.sidebar.header("Reconstruction")
 
 
-def mlem(sinogram, niter):
+def mlem(sinogram, niter, progress_bar=None, status_text=None, image_placeholder=None):
     tt = time.time()
     image_shape, nview = np.shape(sinogram)
     theta = np.linspace(0.0, 360.0, nview, endpoint=False)
-    # Initial image
     mlem_rec = np.ones([image_shape, image_shape])
-    # row, column = disk(
-    #     (int(image_shape / 2), int(image_shape / 2)), int(image_shape / 2 - 10))
-    # mlem_rec[row, column] = 1
-
-    # Sensitivity map
     sino_ones = np.ones(sinogram.shape)
     sens_image = iradon(sino_ones, theta=theta, circle=True, filter_name=None)
+    
+    convergence = []
 
-    for iter in range(niter):
-        # Forward projection of mlem_rec at iteration k A x^k
+    for i in range(niter):
+        if status_text:
+            status_text.text(f"MLEM Iteration {i+1}/{niter}...")
+        
+        prev_rec = mlem_rec.copy()
         fp = radon(mlem_rec, theta, circle=True)
-        ratio = sinogram / (fp + 0.000001)  # ratio sinogram
+        ratio = sinogram / (fp + 0.000001)
         correction = iradon(ratio, theta, circle=True,
                             filter_name=None) / (sens_image+0.00000001)
-        mlem_rec = mlem_rec * correction  # update
+        mlem_rec = mlem_rec * correction
+        
+        # Calculate RMSE as a convergence metric
+        rmse = np.sqrt(np.mean((mlem_rec - prev_rec)**2))
+        convergence.append(rmse)
+        
+        if progress_bar:
+            progress_bar.progress((i + 1) / niter)
+        if image_placeholder:
+            disp = (mlem_rec - mlem_rec.min()) / (mlem_rec.max() - mlem_rec.min() + 1e-9)
+            image_placeholder.image(disp, caption=f"MLEM Iteration {i+1}", use_container_width=False, width=340)
 
     elapsed = (time.time() - tt)
     elapsed = "{:.2f}".format(elapsed)
-    st.info('Reconstruction Completed; Estimated time (sec): ' + str(elapsed))
+    st.info('Reconstruction Completed; Total time (sec): ' + str(elapsed))
 
-    return mlem_rec
+    return mlem_rec, convergence
 
 
-def osem(sinogram, niter, nsub):
+def osem(sinogram, niter, nsub, progress_bar=None, status_text=None, image_placeholder=None):
     tt = time.time()
     image_shape, nview = np.shape(sinogram)
     theta = np.linspace(0.0, 360.0, nview, endpoint=False)
-    # st.write(theta)
-    # Initial image
-    osem_rec = np.ones([image_shape, image_shape])
-
-    # row, column = disk(
-    #     (int(image_shape / 2), int(image_shape/ 2)), int(image_shape/2 - 10))
-    # osem_rec[row, column] = 1
-    # st.write(osem_rec.shape)
-    # st.image(osem_rec, width=340)
-    # Sensitivity map (Normalization matrix)
-    # nview = len(theta)
-    # sino_ones = np.ones(sinogram.shape)
     
-    # sens_images = []
-    # for sub in range(nsub):
-    #     views = range(sub, nview, nsub)
-    #     # st.write(views)
-    #     sens_image = iradon(
-    #         sino_ones[:, views], theta=theta[views], circle=True, filter_name=None)
-    #     sens_images.append(sens_image)
-    # st.image(sens_images[0], width=340, clamp=True)
+    if nview % nsub != 0:
+        return None, []
+
+    osem_rec = np.ones([image_shape, image_shape])
     sino_ones = np.ones(sinogram.shape)
     sens_image = iradon(sino_ones, theta=theta, circle=True, filter_name=None)
     
-    for iter in range(niter):
+    convergence = []
+    
+    for i in range(niter):
+        if status_text:
+            status_text.text(f"OSEM Iteration {i+1}/{niter}...")
+            
+        prev_rec = osem_rec.copy()
         order_sub = np.random.permutation(range(nsub))
         for sub in order_sub:
             views = range(sub, nview, nsub)
-            # st.write(theta[views])
-            # Forward projection of osem_rec at iteration k A x^k
             fp = radon(osem_rec, theta[views], circle=True)
-            # st.image(fp, width=340, clamp=True)
-
-            ratio = sinogram[:, views] / (fp + 0.000001)  # ratio sinogram
-            # st.image(ratio, width=340, clamp=True)
+            ratio = sinogram[:, views] / (fp + 0.000001)
             correction = iradon(
                 ratio, theta[views], circle=True, filter_name=None) / (sens_image+0.00000001)
-            # st.image(correction, width=340, clamp=True)
-            # st.write(theta[views])
-            osem_rec = osem_rec * correction #/ (sens_image[sub] + 0.000001) # update
+            osem_rec = osem_rec * correction
+        
+        # RMSE
+        rmse = np.sqrt(np.mean((osem_rec - prev_rec)**2))
+        convergence.append(rmse)
+        
+        if progress_bar:
+            progress_bar.progress((i + 1) / niter)
+        if image_placeholder:
+            disp = (osem_rec - osem_rec.min()) / (osem_rec.max() - osem_rec.min() + 1e-9)
+            image_placeholder.image(disp, caption=f"OSEM Iteration {i+1} (Subsets: {nsub})", use_container_width=False, width=340)
 
     elapsed = (time.time() - tt)
     elapsed = "{:.2f}".format(elapsed)
-    st.info('Reconstruction Completed; Estimated time (sec): ' + str(elapsed))
-    return osem_rec
+    st.info('Reconstruction Completed; Total time (sec): ' + str(elapsed))
+    return osem_rec, convergence
 
 
 # @st.cache_data(ttl=60, max_entries=10, show_spinner="Reconstruction in progress...")
 # @st.cache_data(max_entries=1)
-def fbp(measured_sino, arc=360):
+def fbp(measured_sino, filter_name='ramp', arc=360):
     tt = time.time()
     x, t = np.shape(measured_sino)
-    proj_angles = np.array(range(0, arc, int(arc/t)))
-    backproj = iradon(measured_sino, proj_angles, filter_name='ramp')
+    proj_angles = np.linspace(0, arc, t, endpoint=False)
+    backproj = iradon(measured_sino, proj_angles, filter_name=filter_name)
     elapsed = (time.time() - tt)
     elapsed = "{:.2f}".format(elapsed)
-    st.info('Reconstruction Completed; Estimated time (sec): ' + str(elapsed))
+    st.info('Reconstruction Completed; Total time (sec): ' + str(elapsed))
     return backproj
 
 
@@ -190,9 +196,10 @@ def get_disp_img(img):
 # ---- STORE IMAGES IN STATE
 if 'compare_image' not in st.session_state:
     st.session_state.compare_image = []
-if 'compare_filter' not in st.session_state:
-    st.session_state.compare_filter = pd.DataFrame([])
-
+if 'last_recon' not in st.session_state:
+    st.session_state.last_recon = None
+if 'last_recon_str' not in st.session_state:
+    st.session_state.last_recon_str = ""
 
 Recon_Alg_List = ['OSEM',
                 'MLEM',
@@ -221,8 +228,21 @@ with st.container():
         #     img_path = uploaded_file
 
         if img_path is not None:
+            sino_raw = read_sino(img_path)
             
-            sino = read_sino(img_path)
+            # --- NOISE SIMULATION ---
+            noise_level = st.slider("Simulate Noise (Low Counts):", 
+                                  min_value=0, max_value=100, value=0, 
+                                  help="Simulates lower photon counts by adding Poisson noise. 100 = very noisy (low dose), 0 = noise-free.")
+            
+            if noise_level > 0:
+                # Scale data to simulate photon counts (lower scale = higher relative noise)
+                scale = (101 - noise_level) * 10 
+                sino = np.random.poisson(sino_raw * scale) / scale
+            else:
+                sino = sino_raw
+            # -----------------------
+
             t,m = np.shape(sino)
             disp_img = get_disp_img(sino.T)
             
@@ -241,144 +261,206 @@ with st.container():
         selected_recon_alg = st.radio('Reconstruction Algorithm:', Recon_Alg_List, index=0)
 
         with st.form("Reconstruction parameter"):    
-            # sino = img[:,slice_loc,:].copy()
-            # sino = np.swapaxes(sino,0,1)
             placeholder = st.empty()
-            recon_img = None
             if selected_recon_alg == Recon_Alg_List[0]:
                 with placeholder.container():
-                    # rcol1, rcol2 = st.columns(2)
-                    # with rcol1:
-                    n_ite = st.number_input('Iteration:', min_value=1, max_value=20)
-                    # with rcol2:
-                    n_subsets = st.number_input('Subset:', min_value = 1, max_value=10, help="Number of subsets should be a divisor of the total number of projections.")
+                    n_ite = st.number_input('Iteration:', min_value=1, max_value=20, value=5,
+                                            help="Number of full cycles through the data. More iterations improve resolution but increase 'salt-and-pepper' noise.")
+                    n_subsets = st.number_input('Subset:', min_value = 1, max_value=10, value=4,
+                                                help="Data is split into N subsets. Each subset update acts like a full MLEM iteration, speeding up convergence by factor of N.")
             elif selected_recon_alg ==  Recon_Alg_List[1]:
                 with placeholder.container():
-                    n_ite = st.number_input('Iteration:', min_value=1, max_value=20)
+                    n_ite = st.number_input('Iteration:', min_value=1, max_value=20, value=10,
+                                            help="Number of iterative updates. Resolution improves slowly compared to OSEM, but noise increases more predictably.")
+            elif selected_recon_alg ==  Recon_Alg_List[2]: # FBP
+                with placeholder.container():
+                    fbp_filter = st.selectbox("Analytical Filter:", ["ramp", "shepp-logan", "cosine", "hamming", "hann"], 
+                                             help="Analytical filter used to suppress 1/r blurring while balancing noise.")
                         
-
-            # elapsed = (time.time() - t)*m
-            # elapsed = "{:.2f}".format(elapsed)
-            # st.write('Estimated reconstruction time (sec): ' + str(elapsed))
-            
-            
             submitted = st.form_submit_button("Apply")
-            if submitted:
-                if selected_recon_alg == Recon_Alg_List[0]:
-                    recon_img = osem(sino, n_ite, n_subsets)
-                    if recon_img is None:
-                        st.caption('#subsets ('+str(n_subsets) + ') is not a divisor of #projections (' + str(t) +')')
-                    recon_str = selected_recon_alg +' '+str(n_ite)+' iteration, '+str(n_subsets)+' subset'
-                    
-                elif selected_recon_alg ==  Recon_Alg_List[1]:
-                    recon_img = mlem(sino, n_ite)
-                    recon_str = selected_recon_alg +' '+str(n_ite)+' iteration'
-                    
-                elif selected_recon_alg ==  Recon_Alg_List[2]:
-                    recon_img = fbp(sino)
-                    recon_str = selected_recon_alg 
-                elif selected_recon_alg ==  Recon_Alg_List[3]:
-                    recon_img = bp(sino)
-                    recon_str = selected_recon_alg  
-                    
+            
+        if submitted:
+            # Add progress visualization placeholders
+            prog_bar = st.progress(0)
+            status_txt = st.empty()
+            live_img = st.empty()
+            
+            recon_img = None
+            convergence_data = []
+
+            if selected_recon_alg == Recon_Alg_List[0]:
+                recon_img, convergence_data = osem(sino, n_ite, n_subsets, prog_bar, status_txt, live_img)
+                if recon_img is None:
+                    st.error(f"Error: Subset count ({n_subsets}) must be a divisor of projection count ({t}).")
+                recon_str = f"{selected_recon_alg} {n_ite} iter, {n_subsets} sub"
+                
+            elif selected_recon_alg ==  Recon_Alg_List[1]:
+                recon_img, convergence_data = mlem(sino, n_ite, prog_bar, status_txt, live_img)
+                recon_str = f"{selected_recon_alg} {n_ite} iter"
+                
+            elif selected_recon_alg ==  Recon_Alg_List[2]:
+                recon_img = fbp(sino, filter_name=fbp_filter)
+                recon_str = f"{selected_recon_alg} ({fbp_filter})" 
+            elif selected_recon_alg ==  Recon_Alg_List[3]:
+                recon_img = bp(sino)
+                recon_str = selected_recon_alg
+            
             if recon_img is not None:
-                # st.write("RECONSTRUCTED IMAGE")
-                # disp_recon_img = (np.maximum(recon_img, 0) /
-                #                 recon_img.max()) * 255.0
-                # disp_recon_img = np.uint8(disp_recon_img)
-                # st.image(recon_img, width=340)
-                st.write(recon_str)
-                fig_recon = px.imshow(recon_img, binary_string=True)
-                fig_recon.update_xaxes(showticklabels=False)
-                fig_recon.update_yaxes(showticklabels=False)
-                fig_recon.update_layout(width=340, title_text="RECONSTRUCTED IMAGE")
+                st.session_state.last_recon = recon_img
+                st.session_state.last_recon_str = recon_str
+                st.session_state.last_convergence = convergence_data
+                # Clear progress indicators after completion
+                prog_bar.empty()
+                status_txt.empty()
+                live_img.empty()
+
+        if st.session_state.last_recon is not None:
+            recon_disp_col1, recon_disp_col2 = st.columns([1, 1])
+            with recon_disp_col1:
+                st.write(f"**{st.session_state.last_recon_str}**")
+                fig_recon = px.imshow(st.session_state.last_recon, binary_string=True)
+                fig_recon.update_xaxes(showticklabels=False).update_yaxes(showticklabels=False)
+                fig_recon.update_layout(width=340, height=340, margin=dict(l=0,r=0,t=0,b=0))
                 st.plotly_chart(fig_recon, use_container_width=False)
 
+                if st.button("Add to Comparison"):
+                    st.session_state.compare_image.append({
+                        'name': f"{sample_image} - {st.session_state.last_recon_str}",
+                        'data': st.session_state.last_recon
+                    })
+                    st.success(f"Added to comparison list.")
+
+            with recon_disp_col2:
+                if 'last_convergence' in st.session_state and len(st.session_state.last_convergence) > 0:
+                    st.write("**Convergence Plot (RMSE)**")
+                    conv_df = pd.DataFrame({
+                        'Iteration': range(1, len(st.session_state.last_convergence) + 1),
+                        'RMSE': st.session_state.last_convergence
+                    })
+                    conv_chart = alt.Chart(conv_df).mark_line(point=True).encode(
+                        x='Iteration:O',
+                        y=alt.Y('RMSE:Q', title='Difference from Prev Iteration'),
+                        tooltip=['Iteration', 'RMSE']
+                    ).properties(height=300)
+                    st.altair_chart(conv_chart, use_container_width=True)
+                    st.caption("Lower value indicates the algorithm is reaching a stable solution.")
+                
+                elif "FBP" in st.session_state.last_recon_str:
+                    st.write("**Analytical Filter Shape**")
+                    # Simple visualization of common FBP filters
+                    f_name = st.session_state.last_recon_str.split('(')[-1].split(')')[0]
+                    freq = np.linspace(0, 1, 100)
+                    if f_name == 'ramp': h = freq
+                    elif f_name == 'shepp-logan': h = freq * np.sinc(freq / 2)
+                    elif f_name == 'cosine': h = freq * np.cos(np.pi * freq / 2)
+                    elif f_name == 'hamming': h = freq * (0.54 + 0.46 * np.cos(np.pi * freq))
+                    elif f_name == 'hann': h = freq * (0.5 + 0.5 * np.cos(np.pi * freq))
+                    else: h = freq
+                    
+                    filt_df = pd.DataFrame({'Frequency': freq, 'Amplitude': h})
+                    filt_chart = alt.Chart(filt_df).mark_line().encode(
+                        x='Frequency',
+                        y='Amplitude'
+                    ).properties(height=300)
+                    st.altair_chart(filt_chart, use_container_width=True)
+                    st.caption(f"Frequency response of the {f_name} filter.")
+
     st.divider()
-# with st.container():
-#     st.subheader("POST-FILTER")
-#     mid_col2, right_col = st.columns((1, 1), gap="large")
-#     with mid_col2:
-#         selected_filter = st.selectbox('Filter type:', Filter_list, index=0)
+
+    # --- COMPARISON GALLERY ---
+    if st.session_state.compare_image:
+        st.subheader("Comparison Gallery")
+        if st.button("Clear Comparison"):
+            st.session_state.compare_image = []
+            st.rerun()
+
+        num_images = len(st.session_state.compare_image)
+        if num_images > 0:
+            titles = [img['name'] for img in st.session_state.compare_image]
+            # Limit to 4 columns to avoid squishing
+            cols_per_row = 4
+            num_rows = (num_images + cols_per_row - 1) // cols_per_row
             
-#         placeholder2 = st.empty()
-#         if selected_filter == Filter_list[0]:
-#             filt_img = recon_img
-#             filter_str=''
-        
-#         elif selected_filter == Filter_list[1]:
-#             with placeholder2.container():
-#                 fwhm = st.slider("Full-width at half maximum (pixel):", min_value=1.0, max_value=10.0, step=0.1, value=2.0)
-#                 sigma = fwhm/(2.355)
-#                 truncate = 4
-#                 radius = int(truncate * sigma + 0.5)
-#                 ksize = 2 * radius + 1
-#                 filt_img = gaussian(img, sigma, truncate=truncate, preserve_range=True, mode='reflect')
-#                 gauss_ker = gaussianKernel2(ksize, sigma,  twoDimensional=False)
-
-#                 filter_str = selected_filter + '/' + str(fwhm)
+            fig_comp = make_subplots(rows=num_rows, cols=min(num_images, cols_per_row), subplot_titles=titles)
             
-#         elif selected_filter ==  Filter_list[2]:
-#             with placeholder2.container():
-#                 cutoff = st.slider("Cut-off:", min_value=0.01, max_value=1.0, step=0.01, value=0.25)
-#                 order = st.slider("Order:", min_value=2, max_value=10, step=1)
-#                 shape = np.shape(recon_img)
-#                 filt = getButterworth_lowpass_filter(shape, cutoff, order)
-#                 filter_str = selected_filter + '/' + str(cutoff) + '/' + str(order)
+            for i, img_obj in enumerate(st.session_state.compare_image):
+                row = (i // cols_per_row) + 1
+                col = (i % cols_per_row) + 1
+                fig_comp.add_trace(
+                    go.Heatmap(z=img_obj['data'], colorscale='gray', showscale=False),
+                    row=row, col=col
+                )
+            
+            fig_comp.update_xaxes(showticklabels=False, matches='x')
+            fig_comp.update_yaxes(
+                showticklabels=False, 
+                matches='y', 
+                autorange='reversed',
+                scaleanchor="x",
+                scaleratio=1
+            )
+            
+            fig_comp.update_layout(
+                height=400 * num_rows,
+                margin=dict(l=10, r=10, t=40, b=10),
+                hovermode=False
+            )
+            st.plotly_chart(fig_comp, use_container_width=True)
+            st.info("💡 Zoom into any image to synchronize the view across all images.")
+    # --------------------------
 
-#         elif selected_filter ==  Filter_list[3]:
-#             with placeholder2.container():
-#                 cutoff = st.slider("Cut-off:", min_value=0.01, max_value=1.0, step=0.01, value=0.25)
-#                 shape = np.shape(recon_img)
-#                 filt = getHanning_filter(shape, cutoff)
-#                 filter_str = selected_filter + '/' + str(cutoff) 
-
-#         elif selected_filter ==  Filter_list[4]:
-#             with placeholder2.container():
-#                 cutoff = st.slider("Cut-off:", min_value=0.01, max_value=1.0, step=0.01, value=0.25)
-#                 shape = np.shape(recon_img)
-#                 filt = getHamming_filter(shape, cutoff)
-#                 filter_str = selected_filter + '/' + str(cutoff) 
-
-
-#         if selected_filter == Filter_list[0]:
-#             pass
-#         elif selected_filter == Filter_list[1]:
-#             df = pd.DataFrame({
-#                 'x':range(len(gauss_ker)),
-#                 'y':gauss_ker})
-#             line_chart = alt.Chart(df).mark_line(interpolate='basis').encode(
-#                 alt.X('x', title='Pixels'),
-#                 alt.Y('y', title='Weight')
-#             )
-#             with st.container():
-#                 st.altair_chart(line_chart, use_container_width=True)
-#         else:
-#             filt_img =  fourier_filter(recon_img, filt)
-#             df = pd.DataFrame({
-#                 'x':x,
-#                 'y':filt[int(shape[0]/ 2), int(shape[1]/ 2):shape[1]]
-#             })
-
-#             line_chart = alt.Chart(df).mark_line(interpolate='basis').encode(
-#                 alt.X('x', title='Frequency (cycle/pixel)'),
-#                 alt.Y('y', title='Amplitude')
-#             )
-#             with st.container():
-#                 st.altair_chart(line_chart, use_container_width=True)
-
-
-#     with right_col:
-#         st.write("FILTERED IMAGE")
+    # ---- POST-FILTER SECTION ----
+    if st.session_state.last_recon is not None:
+        st.divider()
+        st.subheader("POST-FILTER")
+        st.info("Iterative reconstructions (OSEM/MLEM) can be noisy. Applying a low-pass filter can improve clinical image quality.")
         
-#         if recon_img is not None:
-#             disp_recon_img = (np.maximum(filt_img, 0) / filt_img.max()) * 255.0
-#             disp_recon_img = np.uint8(disp_recon_img)
-#             st.image(disp_recon_img, width=340)
+        filter_col1, filter_col2 = st.columns((1, 1), gap="large")
+        
+        with filter_col1:
+            Post_Filter_list = ['None', 'Gaussian', 'Butterworth', 'Hanning']
+            selected_filter = st.radio('Post-Filter type:', Post_Filter_list, index=0, horizontal=True)
+            
+            filt_img = st.session_state.last_recon.copy()
+            filter_str = "No filter"
+            shape = np.shape(filt_img)
+            
+            if selected_filter == 'Gaussian':
+                fwhm = st.slider("FWHM (pixels):", 0.1, 10.0, 2.0)
+                sigma = fwhm/2.355
+                filt_img = gaussian(filt_img, sigma, preserve_range=True)
+                filter_str = f"Gaussian FWHM={fwhm}"
+                
+            elif selected_filter == 'Butterworth':
+                cutoff = st.slider("Cut-off frequency:", 0.05, 1.0, 0.25, key="bw_cutoff")
+                order = st.slider("Order:", 1, 10, 5, key="bw_order")
+                filt = getButterworth_lowpass_filter(shape, cutoff, order)
+                filt_img = fourier_filter(filt_img, filt)
+                filter_str = f"Butterworth c={cutoff}, n={order}"
+                
+            elif selected_filter == 'Hanning':
+                cutoff = st.slider("Cut-off frequency:", 0.05, 1.0, 0.25, key="han_cutoff")
+                filt = getHanning_filter(shape, cutoff)
+                filt_img = fourier_filter(filt_img, filt)
+                filter_str = f"Hanning c={cutoff}"
 
-#         st.write(recon_str)
-#         st.write(filter_str)
+            if selected_filter != 'None':
+                if st.button("Add Filtered to Comparison"):
+                    st.session_state.compare_image.append({
+                        'name': f"{sample_image} - {st.session_state.last_recon_str} + {filter_str}",
+                        'data': filt_img
+                    })
+                    st.success("Filtered result added to Comparison Gallery.")
 
-# st.divider()
+        with filter_col2:
+            st.write(f"**RESULT: {filter_str}**")
+            fig_filt = px.imshow(filt_img, binary_string=True)
+            fig_filt.update_xaxes(showticklabels=False)
+            fig_filt.update_yaxes(showticklabels=False)
+            fig_filt.update_layout(width=340, margin=dict(l=0,r=0,t=30,b=0))
+            st.plotly_chart(fig_filt, use_container_width=False)
+    # -----------------------------
+
+st.divider()
 st.caption("Anucha Chaichana") 
 st.caption("anucha.cha@mahidol.ac.th")

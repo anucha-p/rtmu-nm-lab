@@ -1,451 +1,185 @@
 import streamlit as st
 from pathlib import Path
-
 import matplotlib.pyplot as plt
 import numpy as np
-# import pydicom as dicom
-# import streamlit_nested_layout
-# import nibabel as nib
 from skimage.transform import radon
 from scipy import ndimage
-# import plotly
 import plotly.express as px
 from plotly.subplots import make_subplots
 import plotly.graph_objects as go
 from plotly import colors
-# import base64
 from PIL import Image
 
 st.set_page_config(page_title="Sinogram", page_icon="✋🏻", layout="wide")
 
-remove_top_padding = """
-        <style>
-               .css-18e3th9 {
-                    padding-top: 0rem;
-                    padding-bottom: 10rem;
-                    padding-left: 5rem;
-                    padding-right: 5rem;
-                }
-               .css-1d391kg {
-                    padding-top: 3.5rem;
-                    padding-right: 1rem;
-                    padding-bottom: 3.5rem;
-                    padding-left: 1rem;
-                }
-        </style>
-        """
-st.markdown(remove_top_padding, unsafe_allow_html=True)
-
-# hide_menu_style = """
-#         <style>
-#         #MainMenu {visibility: hidden;}
-#         </style>
-#         """
-# st.markdown(hide_menu_style, unsafe_allow_html=True)
+# Custom CSS for a cleaner look
+st.markdown("""
+    <style>
+    .main {
+        padding-top: 0rem;
+    }
+    .stAlert {
+        margin-top: -1rem;
+    }
+    h3 {
+        margin-top: 2rem;
+        color: #007BFF;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
 # ---- HEADER SECTION ----
-with st.container():
-    st.title("Profile, Projection, and Sinogram")
-    st.write("---")
-# ---- LOAD IMAGE ----
+st.title("Profile, Projection, and Sinogram")
+st.markdown("---")
+
+# ---- LOAD DATA ----
 BASE_DIR = Path(__file__).resolve().parent
 PRJ_DIR = BASE_DIR / 'images/sino_proj/Shepp_Logan_Prj.npy'
 SLICE_DIR = BASE_DIR / 'images/sino_proj/Shepp_Logan_copy.npy'
 SINO_DIR = BASE_DIR / 'images/sino_proj/shepp_logan_sinogram.npy'
-# imageNames = [f.name for f in IMAGE_DIR.iterdir() if f.suffix=='.nii']
 
-# img_path = IMAGE_DIR / sample_image
-st.sidebar.header("Sinogram")
-
-# with st.expander("CHANGE PROJECTION DATA"):
-#     sample_image = st.radio('Choose sample projection', imageNames, index=0)
-#     img_path = IMAGE_DIR / sample_image
-
-
-# def read_dcm(imp_path):
-#     ds = dicom.dcmread(img_path)
-#     img = ds.pixel_array.astype(float)
-#     scaled_image = (np.maximum(img, 0) / img.max()) * 255.0
-#     disp_img = np.uint8(scaled_image)
-#     return disp_img
-
-
-# @st.cache_resource
-# def read_nii(img_path):
-#     img = nib.load(img_path)
-#     a = np.array(img.dataobj)
-#     a = np.flip(a, axis=0)
-#     scaled_image = (np.maximum(a, 0) / a.max()) * 255.0
-#     a = np.uint8(scaled_image)
-#     return a
-
-# @st.cache_data
-# def get_projection(object, theta):
-#     sino_p = np.zeros([m, theta.shape[0], n])
-#     for i in range(n):
-#         sino_p[:, :, i] = radon(object[:, :, i], theta, preserve_range=True)
-    
-#     prj = np.swapaxes(sino_p, 0, 1)
-#     prj = np.swapaxes(prj, 1, 2)
-
-#     return prj
-
-
-# @st.cache_data
-def disp_prj(prj,theta):
-    n_col = 6
-    n_row = int(prj.shape[0]/n_col)
-    fig, axs = plt.subplots(n_row, n_col, figsize=(12, 12))
-    axs = axs.flatten()
-    i = 0
-    for img, ax in zip(prj, axs):
-        ax.imshow(img, cmap="gray")
-        ax.set_title('Angle: ' + str(theta[i]), size=5)
-        i+=1
-        ax.axis('off')
-    fig.tight_layout()
-    st.pyplot(fig)
-
-
-# @st.cache_resource
-def init():
-    prj = np.load(PRJ_DIR)
-    tomo = np.load(SLICE_DIR)
-    sinogram = np.load(SINO_DIR)
-    return prj, tomo, sinogram
-
-prj, tomo, sinogram = init()
-
-# disp_img = read_nii(img_path)
+prj, tomo, sinogram_raw = np.load(PRJ_DIR), np.load(SLICE_DIR), np.load(SINO_DIR)
 n_ang, n_z, n_x = np.shape(prj)
 
-arc = 360
+# Apply Motion Simulation Logic
+def apply_motion(sino, amplitude):
+    if amplitude == 0: return sino
+    shifted_sino = np.zeros_like(sino)
+    for i in range(sino.shape[0]):
+        shift = np.random.randint(-amplitude, amplitude + 1)
+        shifted_sino[i, :] = np.roll(sino[i, :], shift)
+    return shifted_sino
 
-# Slice_img = np.array(Image.open(IMAGE_DIR / 'circle_square.bmp'))
+# ---- 1️⃣ STEP 1: PROJECTION ACQUISITION ----
+st.subheader("1️⃣ Step 1: 2D Projection Acquisition")
+st.info("The detector rotates around the patient, capturing 2D 'shadow' images (projections) at each angle.")
 
-# if "angle" not in st.session_state:
-#     st.session_state.angle = 0
-#     st.session_state.slice = int(m/2)
-st.header("Projection")
-st.info("""
-**Projections** are 2D images captured by the detector at different angles as it rotates around the patient. 
-Adjust the settings below to see how different angular ranges and step sizes affect the data collection process.
-The polar plot on the left shows the current detector position, and the animation on the right shows the sequence of 2D images acquired.
-""")
-with st.form("Projection"):
-    left_low_col, right_low_col = st.columns([1, 1], gap="large")
-
-    with left_low_col:
-        start_ang_prj = st.radio(
-            "Start angle (ϴ):", [0, 45, 90, 180], index=0, key='start_ang_prj', horizontal=True)
-        step_ang_prj = st.radio(
-            "Step angle (ϴ):", [3, 6, 12], index=2, key='step_ang_prj', horizontal=True)
-        ang_range = st.radio(
-            "Angular range (ϴ):", [180, 360], index=1, key='ang_range', horizontal=True)
-        rot_direct = st.radio(
-            "Direction:", ["CW", "CCW"], index=1, key='rot_direction', horizontal=True)
-        submitted = st.form_submit_button("Apply")
-        if submitted:
-
-            # theta = np.array(range(start_ang_prj, start_ang_prj+ang_range , step_ang_prj))
-            if rot_direct == 'CW':
-                theta = np.array(range(start_ang_prj, start_ang_prj+ang_range , step_ang_prj))
-                ang_dir = 'clockwise'
-                wrapped_range = [(start_ang_prj + i) % 360 for i in range(0, ang_range, step_ang_prj)]
-            else:
-                theta = np.array(range(start_ang_prj, start_ang_prj-ang_range , -step_ang_prj))
-                ang_dir = 'counterclockwise'
-                wrapped_range = [(start_ang_prj - i) % 360 for i in range(0, ang_range, step_ang_prj)]
-            
-            # ang_idx = range(0, 120, int(step_ang_prj/3))
-            # ang_idx = list(ang_idx)
-            # selected_index = ang_idx.index(start_ang_prj)  # Assuming 0 is the selected index
-            # ang_idx = ang_idx[selected_index:] + ang_idx[:selected_index]
-            # prj_ = prj[ang_idx,:,:]
-            
-            # start = 90
-            # step = 3
-            # ang_range = 360
-            # wrapped_range = [(start_ang_prj + i) % 360 for i in range(0, ang_range, step_ang_prj)]
-            ang_idx = range(357, -1, -3)
-            ang_idx = list(ang_idx)
-            # ang_idx = [(180 + i) % 360 for i in range(0, 360, 3)]
-            indices = [ang_idx.index(value) for value in wrapped_range if value in ang_idx]
-            prj_ = np.zeros((len(indices), np.shape(prj)[1], np.shape(prj)[2]), dtype=int)
-            for i in range(len(indices)):
-                prj_[i, :, :] = prj[indices[i], :, :]
-                        
-            r = np.ones(np.shape(theta))
-            fig = go.Figure()
-            trace=go.Scatterpolar(r=r,
-                                theta=theta,
-                                opacity=1,
-                                mode = 'markers',)
-            fig.add_trace(trace)
-            fig.update_xaxes(showticklabels=False).update_yaxes(showticklabels=False)
-            fig.update_layout(coloraxis_showscale=False)
-            fig.update_layout(plot_bgcolor='rgba(0,0,0,0)')
-            fig.add_layout_image(
-                dict(
-                    source=Image.open(BASE_DIR / 'images/sino_proj/shepp_logan.png'),
-                    xref="x domain",
-                    yref="y domain",
-                    x=0.5,
-                    y=0,
-                    sizex=1,
-                    sizey=1,
-                    sizing="contain",
-                    xanchor="center",
-                    yanchor="bottom",
-                    opacity=0.5,
-                    layer="above")
-            )
-            fig.update_layout(
-                template=None,
-                polar = dict(
-                    radialaxis = dict(range=[0, 1], showticklabels=False, ticks=''),
-                    angularaxis = dict(rotation = 90,
-                    direction = 'clockwise', tickfont_size=8)
-            ))
-            fig.update_layout(width=500, height=500)
-            st.plotly_chart(fig, use_container_width=True)
-
-            with right_low_col:
-                fig_sino = px.imshow(prj_, animation_frame=0, binary_string=True, labels=dict(animation_frame="Projection"))
-                fig_sino.update_xaxes(showticklabels=False).update_yaxes(showticklabels=False)
-                fig_sino.update_layout(coloraxis_showscale=False)
-                st.plotly_chart(fig_sino, use_container_width=True)
-            
-
-# with st.containers('Profile'):
-st.header("Profile")
-st.info("""
-A **Profile** (or Line Integral) represents the total attenuation of X-rays along a specific path through the object. 
-In a 2D projection image, each horizontal row represents a profile of a single 'slice' of the patient. 
-The red dashed line on the **Projection Image** shows which specific slice we are looking at.
-""")
-with st.form("Profile"):
-    left_top_col, right_top_col = st.columns([1,1], gap="large")
-    with left_top_col:
-
-        profile_ang = st.number_input("Angle (ϴ):", min_value=0, max_value=359,
-                        step=6, value=0)
+with st.form("Acquisition Settings"):
+    acq_col1, acq_col2 = st.columns([1, 2])
+    with acq_col1:
+        start_ang = st.radio("Start angle (ϴ):", [0, 45, 90, 180], index=0, horizontal=True)
+        step_ang = st.radio("Step angle (ϴ):", [3, 6, 12], index=2, horizontal=True)
+        ang_range = st.radio("Angular range (ϴ):", [180, 360], index=1, horizontal=True)
+        rot_dir = st.radio("Rotation Direction:", ["CW", "CCW"], index=0, horizontal=True)
+        btn_acq = st.form_submit_button("Preview Acquisition")
+    
+    with acq_col2:
+        # Acquisition Logic
+        if rot_dir == 'CW':
+            theta_acq = np.array(range(start_ang, start_ang + ang_range, step_ang))
+            wrapped_range = [(start_ang + i) % 360 for i in range(0, ang_range, step_ang)]
+        else:
+            theta_acq = np.array(range(start_ang, start_ang - ang_range, -step_ang))
+            wrapped_range = [(start_ang - i) % 360 for i in range(0, ang_range, step_ang)]
         
-        submitted = st.form_submit_button("Apply")
-        if submitted:
-
-            with right_top_col:
-
-                    Slice_img = tomo.copy()
-                    Slice_img = ndimage.rotate(Slice_img, profile_ang, reshape=False)
-                    profile = np.sum(Slice_img, axis=0)/Slice_img.shape[1]
-                    # ang_idx = int(profile_ang*119/359)
-                    # profile = sinogram[ang_idx, :]
-
-                    
-                    col_p1, col_p2 = st.columns(2)
-                    with col_p1:
-                        st.write("Rotated Slice")
-                        fig_org = px.imshow(Slice_img, binary_string=True)
-                        fig_org.update_layout(
-                            autosize=False,
-                            width=340,
-                            height=400,
-                            margin=dict(l=5, r=5, b=5, t=5, pad=4),
-                        )
-                        st.plotly_chart(fig_org, use_container_width=True)
-                    
-                    with col_p2:
-                        st.write("Projection Image (2D)")
-                        # Find projection index: prj has 120 angles, every 3 deg, reversed (index 119 is 0 deg)
-                        target_ang = (profile_ang // 3) * 3
-                        if target_ang >= 360: target_ang = 0
-                        prj_idx = 119 - (target_ang // 3)
-                        prj_idx = max(0, min(119, prj_idx))
-                        
-                        prj_img = prj[prj_idx, :, :]
-                        fig_prj = px.imshow(prj_img, binary_string=True)
-                        # Highlight the row corresponding to the slice (assuming middle slice)
-                        fig_prj.add_hline(y=n_z//2, line_dash="dash", line_color="red")
-                        fig_prj.update_layout(
-                            autosize=False,
-                            width=340,
-                            height=400,
-                            margin=dict(l=5, r=5, b=5, t=5, pad=4),
-                        )
-                        st.plotly_chart(fig_prj, use_container_width=True)
-                    
-                    st.write("Profile (1D Image)")
-                    profile_img = profile[np.newaxis, ...]
-                    fig_profle = px.imshow(profile_img, binary_string=True)
-
-                    fig_profle.update_layout(
-                        autosize=False,
-                        width=340,
-                        height=80,
-                        margin=dict(
-                            l=5,
-                            r=5,
-                            b=5,
-                            t=5,
-                            pad=4
-                        ),)
-                    st.plotly_chart(fig_profle, use_container_width=True)
-                    
-                    st.write("Profile (Line Plot)")
-                    fig = go.Figure()
-                    trace=go.Scatter(x=np.linspace(0,n_x,n_x, endpoint=False),
-                            y=profile,
-                            line=dict(width=2),
-                            showlegend=False)
-                    fig.add_trace(trace)
-                    fig.update_layout(
-                        autosize=False,
-                        width=340,
-                        height=200,
-                        margin=dict(
-                            l=5,
-                            r=5,
-                            b=5,
-                            t=5,
-                            pad=4
-                        ),)
-                    st.plotly_chart(fig, use_container_width=True)
+        # Extract corresponding 2D projections from the 3D volume
+        ang_indices_3deg = range(357, -1, -3) # Data is 0-357 in 3 deg steps
+        ang_list = list(ang_indices_3deg)
+        proj_indices = [ang_list.index(v) for v in wrapped_range if v in ang_list]
         
-# with st.expander('Sinogram'):
-st.header("Sinogram")
-st.info("""
-A **Sinogram** is a 2D image where one axis represents the detector position (x) and the other represents the rotation angle (θ). 
-It is formed by stacking 1D profiles from every angle.
-- **Sinogram with gaps:** Shows the data in the full 360° angular space. Empty space represents angles where no data was collected.
-- **Sinogram without gaps:** Shows only the collected projections compressed together.
-""")
-with st.form("Sinogram"):
-    left_mid_col, right_mid_col = st.columns([1,1], gap="large")
-
-    with left_mid_col:
-        step_angle = st.radio(
-            "Step angle (ϴ):", [1, 3, 6, 12], index=2, horizontal=True)
-        submitted = st.form_submit_button("Apply")
-        if submitted:
-        # slice_sino = st.number_input(
-        #     "Slice:", min_value=1, max_value=n_z, step=5, value=int(n_z/2), key='slice_sino')
-        # start_angle = st.selectbox("Start angle (ϴ):", [0, 45, 90, 135, 180, 225, 270, 315],index=0)
+        prj_subset = np.zeros((len(proj_indices), n_z, n_x))
+        for i, idx in enumerate(proj_indices):
+            prj_subset[i, :, :] = prj[idx, :, :]
         
-        
-        # fig = go.Figure()
-        # fig.add_trace(fig_org.data[0], 1, 1)
-        
-        # Img_sino = disp_img[:, :, slice_sino-1].copy()
-            theta = np.array(range(0, arc, step_angle))
-            # theta_r = np.pi * theta/180
+        fig_prj_anim = px.imshow(prj_subset, animation_frame=0, binary_string=True, 
+                               labels=dict(animation_frame="Projection Index", x="Detector X", y="Detector Y"))
+        fig_prj_anim.update_layout(width=400, height=400, margin=dict(l=0,r=0,t=0,b=0))
+        fig_prj_anim.update_xaxes(title_text="Detector Position (X)").update_yaxes(title_text="Detector Position (Y)")
+        st.plotly_chart(fig_prj_anim, use_container_width=True)
 
-            # fig3 = plt.figure()
-            # axes_coords = [0.1, 0.1, 0.8, 0.8]
-            # ax4 = fig3.add_axes(axes_coords)
-            # ax4.imshow(Img_sino, cmap="gray")
-            # ax4.axis('off')
+# ---- 2️⃣ STEP 2: THE INTERACTIVE BRIDGE (PROFILE & SINOGRAM) ----
+st.subheader("2️⃣ Step 2: Interactive Exploration")
+st.info("Adjust the anatomical slice and simulate motion to see how it affects the raw data (profiles and sinograms).")
 
-            # ax3 = fig3.add_axes(axes_coords, projection='polar')
-            # ax3.patch.set_alpha(0)
-            # ax3.set_theta_zero_location("N")
-            # ax3.set_theta_direction(-1)
-            r = np.ones(np.shape(theta))
-            # ax3.scatter(theta_r, r,
-            #          color="tab:orange", lw=1,)
+# --- Interactive Controls ---
+with st.container():
+    ctrl_col1, ctrl_col2, ctrl_col3 = st.columns([2, 1, 1], gap="medium")
+    with ctrl_col1:
+        explorer_angle = st.slider("Scrub Acquisition Angle (ϴ):", 0, 357, 0, step=3)
+    with ctrl_col2:
+        selected_slice = st.slider("Select Slice (Z):", 0, n_z - 1, n_z // 2)
+    with ctrl_col3:
+        simulate_motion = st.checkbox("Simulate Motion")
+        motion_amplitude = st.slider("Amplitude:", 1, 10, 3) if simulate_motion else 0
 
-            # ax3.set_rlabel_position(-22.5)
-            
-            # st.pyplot(fig3)
-            # fig = make_subplots(rows=1, cols=1)
-            fig = go.Figure()
-            # fig_org = px.imshow(tomo, binary_string=True)
-            # # fig = px.imshow(tomo, color_continuous_scale='gray')
-            # fig.add_trace(fig_org.data[0])
-            trace=go.Scatterpolar(r=r,
-                                theta=theta,
-                                opacity=1,
-                                mode = 'markers',)
-            fig.add_trace(trace)
-            fig.update_xaxes(showticklabels=False).update_yaxes(showticklabels=False)
-            fig.update_layout(coloraxis_showscale=False)
-            # fig.update_layout(paper_bgcolor='rgba(0,0,0,0)')
-            # img = base64.b64encode(open(BASE_DIR / 'images/sino_proj/shepp_logan.png', 'rb').read())
-            fig.update_layout(plot_bgcolor='rgba(0,0,0,0)')
-            fig.add_layout_image(
-                dict(
-                    source=Image.open(BASE_DIR / 'images/sino_proj/shepp_logan.png'),
-                    xref="x domain",
-                    yref="y domain",
-                    x=0.5,
-                    y=0,
-                    sizex=1,
-                    sizey=1,
-                    sizing="contain",
-                    xanchor="center",
-                    yanchor="bottom",
-                    opacity=0.5,
-                    layer="above")
-            )
-            fig.update_layout(
-                template=None,
-                polar = dict(
-                radialaxis = dict(range=[0, 1], showticklabels=False, ticks=''),
-                angularaxis = dict(rotation = 90,
-                    direction = "clockwise", tickfont_size=8)
-                ))
-            fig.update_layout(width=500, height=500)
-            st.plotly_chart(fig, use_container_width=True)
-        
-        # fig.add_trace(fig_org.data[0], 1, 1)
-        
-            with right_mid_col:
-                # Slice_img = disp_img[:, :, slice_sino-1].copy()
-                # Slice_img = tomo.copy()
-                # sinogram = np.zeros([360,n])
-                # for i in theta:
-                #     sinogram[i,:] = radon(Slice_img, [i], preserve_range=True)[:,0]
-                
-                
-                # fig4, ax5 = plt.subplots()
-                # fig4.set_figwidth(8)
+# --- Generate Dynamic Sinogram from 3D Projections ---
+# prj has shape (120, n_z, n_x), where 120 are angles in 3-degree steps
+sinogram_dynamic = np.zeros((360, n_x))
+ang_indices_3deg = range(357, -1, -3) 
+ang_list = list(ang_indices_3deg)
 
-                # ax5.imshow(sinogram, cmap="gray")
-                # ax5.invert_yaxis()
-                # plt.tight_layout()
-                # st.pyplot(fig4)
-                
-                ang_idx = theta
-                # ang_idx = theta*119/359
-                # ang_idx = ang_idx.astype(int).item()
-                disp_sino = np.zeros(np.shape(sinogram))
-                disp_sino[ang_idx, :] = sinogram[ang_idx, :]
+for i, ang in enumerate(ang_list):
+    sinogram_dynamic[ang, :] = prj[i, selected_slice, :]
 
-                sino_col1, sino_col2 = st.columns(2)
-                with sino_col1:
-                    st.write("Sinogram with gaps")
-                    fig_sino = px.imshow(disp_sino, color_continuous_scale='gray')
-                    fig_sino.update_layout(width=400, height=800)
-                    fig_sino.update_layout(coloraxis_showscale=False)
-                    st.plotly_chart(fig_sino, use_container_width=True)
+# Apply Motion to the dynamic sinogram
+sinogram = apply_motion(sinogram_dynamic, motion_amplitude)
+# ----------------------------------------------------
 
-                with sino_col2:
-                    st.write("Sinogram without gaps")
-                    gapless_sino = sinogram[ang_idx, :]
-                    fig_gapless = px.imshow(gapless_sino, color_continuous_scale='gray')
-                    fig_gapless.update_layout(width=400, height=800)
-                    fig_gapless.update_layout(coloraxis_showscale=False)
-                    st.plotly_chart(fig_gapless, use_container_width=True)
-                
-                # fig_sino = px.imshow(disp_sino, color_continuous_scale='gray')
-                # fig_sino.update_layout(width=500, height=1000)
-                # fig_sino.update_layout(coloraxis_showscale=False)
-                # # fig_sino.update_xaxes(showticklabels=False)
-                # # fig_sino.update_yaxes(showticklabels=False)
-                # st.plotly_chart(fig_sino, use_container_width=False)
-                
-                
+bridge_col1, bridge_col2 = st.columns([1, 1], gap="large")
 
-st.write("---")
-st.caption("Anucha Chaichana")
-st.caption("anucha.cha@mahidol.ac.th")
+with bridge_col1:
+    st.markdown("**A. Relative Motion Concept**")
+    perspective = st.radio("Perspective:", ["Room View", "Detector View"], horizontal=True)
+    
+    sub_col1, sub_col2 = st.columns(2)
+    with sub_col1:
+        if perspective == "Room View":
+            st.caption("Patient (Fixed) & Detector (Moving)")
+            fig_room = px.imshow(tomo, binary_string=True, labels=dict(x="X Position", y="Y Position"))
+            rad = np.deg2rad(90 - explorer_angle)
+            cx, cy = n_x // 2, n_z // 2
+            r_dist = n_x // 2 + 15
+            dx = cx + r_dist * np.cos(rad)
+            dy = cy - r_dist * np.sin(rad)
+            half_len = n_x // 2
+            x0, y0 = dx + half_len * np.sin(rad), dy + half_len * np.cos(rad)
+            x1, y1 = dx - half_len * np.sin(rad), dy - half_len * np.cos(rad)
+            fig_room.add_shape(type="line", x0=x0, y0=y0, x1=x1, y1=y1, line=dict(color="red", width=6))
+            fig_room.add_trace(go.Scatter(x=[dx], y=[dy], mode='text', text=[f"{explorer_angle}°"], textfont=dict(color="red"), showlegend=False))
+            fig_room.update_xaxes(title_text="X Position").update_yaxes(title_text="Y Position")
+            st.plotly_chart(fig_room, use_container_width=True)
+        else:
+            st.caption("Detector (Fixed at Top)")
+            rotated_slice = ndimage.rotate(tomo, explorer_angle, reshape=False)
+            fig_slice = px.imshow(rotated_slice, binary_string=True, labels=dict(x="X'", y="Y'"))
+            fig_slice.add_shape(type="rect", x0=0, y0=-10, x1=n_x, y1=-2, fillcolor="red", line=dict(color="red"), opacity=0.8)
+            fig_slice.update_xaxes(title_text="X' (Rotating)").update_yaxes(title_text="Y' (Rotating)")
+            st.plotly_chart(fig_slice, use_container_width=True)
+    
+    with sub_col2:
+        st.caption(f"Detector Output ({explorer_angle}°)")
+        p_idx = ang_list.index(explorer_angle)
+        p_img = prj[p_idx, :, :].copy()
+        if simulate_motion:
+            p_img = np.roll(p_img, np.random.randint(-motion_amplitude, motion_amplitude+1), axis=1)
+        fig_p = px.imshow(p_img, binary_string=True, labels=dict(x="Detector X", y="Detector Y"))
+        fig_p.add_hline(y=selected_slice, line_dash="dash", line_color="red")
+        fig_p.update_xaxes(title_text="Detector Position (X)").update_yaxes(title_text="Detector Position (Y)")
+        st.plotly_chart(fig_p, use_container_width=True)
+
+    st.markdown("**B. 1D Profile Extraction**")
+    profile = p_img[selected_slice, :]
+    st.caption("Profile Image (1D)")
+    fig_prof_img = px.imshow(profile[np.newaxis, ...], binary_string=True, labels=dict(x="Detector X", y="Intensity"))
+    fig_prof_img.update_layout(height=120, margin=dict(l=0,r=0,t=0,b=40))
+    fig_prof_img.update_xaxes(title_text="Detector Position").update_yaxes(showticklabels=False)
+    st.plotly_chart(fig_prof_img, use_container_width=True)
+
+    st.caption("Profile Plot (Line)")
+    fig_line = go.Figure()
+    fig_line.add_trace(go.Scatter(y=profile, line=dict(color='#007BFF', width=3)))
+    fig_line.update_layout(height=200, margin=dict(l=0,r=0,t=10,b=0), xaxis_title="Detector Position", yaxis_title="Pixel Intensity")
+    st.plotly_chart(fig_line, use_container_width=True)
+
+with bridge_col2:
+    st.markdown("**C. Sinogram Construction**")
+    fig_sino_bridge = px.imshow(sinogram, color_continuous_scale='gray', labels=dict(x="Detector X", y="Angle (θ)"))
+    fig_sino_bridge.add_hline(y=explorer_angle, line_dash="solid", line_color="red", annotation_text=f"{explorer_angle}°", annotation_position="top right")
+    fig_sino_bridge.update_layout(margin=dict(l=0,r=0,t=30,b=0), height=500, coloraxis_showscale=False)
+    fig_sino_bridge.update_xaxes(title_text="Detector Position (X)").update_yaxes(title_text="Acquisition Angle (θ)")
+    st.plotly_chart(fig_sino_bridge, use_container_width=True)
+    st.caption("The red line highlights the current angle in the complete Sinogram.")
+
+# ---- FOOTER ----
+st.markdown("---")
+st.caption("Anucha Chaichana | anucha.cha@mahidol.ac.th")

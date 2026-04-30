@@ -119,6 +119,13 @@ imageNames = [f for f in file_name]
 
 st.sidebar.header("Filter")
 
+# ---- STORE IMAGES IN STATE
+if 'compare_filter' not in st.session_state or not isinstance(st.session_state.compare_filter, list):
+    st.session_state.compare_filter = []
+if 'last_filt' not in st.session_state:
+    st.session_state.last_filt = None
+if 'last_filt_str' not in st.session_state:
+    st.session_state.last_filt_str = ""
 
 # with st.sidebar:
 # with st.expander("CHANGE INPUT IMAGE"):
@@ -148,95 +155,68 @@ x = np.linspace(0,1,int(m/2))
 filt_img = None
 
 # ---- FILTER ----
-# with st.container():
-    # st.write("---")
-    
 Filter_list = ['Gaussian', 
-        'Butterworth', 
+        'Butterworth Low-pass', 
+        'Butterworth High-pass',
         'Hanning']
 
 left_col, right_col  = st.columns(2, gap="large")
 
 with left_col:
     st.subheader('Filter')
-    # selected_filter = st.selectbox('Filter type:', Filter_list, index=1)
     selected_filter = st.radio("Filter type:", Filter_list)
 
-    with st.form("Filter parameter"):
+    if selected_filter == Filter_list[0]:
+        fwhm = st.slider("Full-width at half maximum (pixel):", min_value=1.0, max_value=21.0, step=2.0, value=3.0)
+        sigma = fwhm/(2.355)
+        radius = int(4 * sigma + 0.5)
+        ksize = 2 * radius + 1
+        filt_img = gaussian(img, sigma, truncate=4, preserve_range=True, mode='reflect')
+        filt_str = f"{selected_filter} FWHM={fwhm}"
         
-        placeholder = st.empty()
-        if selected_filter == Filter_list[0]:
-            with placeholder.container():               
-                fwhm = st.slider("Full-width at half maximum (pixel):", min_value=1.0, max_value=21.0, step=2.0, value=3.0)
-        elif selected_filter ==  Filter_list[1]:
-            with placeholder.container():
-                cutoff = st.slider("Cut-off:", min_value=0.05, max_value=1.0, step=0.05, value=0.5)
-                order = st.slider("Order:", min_value=1, max_value=10, step=1, value=3)
-                
+        gauss_ker = gaussianKernel2(ksize, sigma,  twoDimensional=False)
+        df = pd.DataFrame({'x':range(len(gauss_ker)), 'y':gauss_ker})
+        line_chart = alt.Chart(df).mark_line(interpolate='basis').encode(
+            alt.X('x', title='Pixels'),
+            alt.Y('y', title='Kernel weight')
+        )
+        st.altair_chart(line_chart, use_container_width=True)
+
+    elif 'Butterworth' in selected_filter:
+        cutoff = st.slider("Cut-off:", min_value=0.05, max_value=1.0, step=0.05, value=0.5)
+        order = st.slider("Order:", min_value=1, max_value=10, step=1, value=3)
+        if 'Low-pass' in selected_filter:
+            filt = getButterworth_lowpass_filter(shape, cutoff, order)
         else:
-            with placeholder.container():
-                cutoff = st.slider("Cut-off:", min_value=0.05, max_value=1.0, step=0.05, value=0.5)
+            filt = getButterworth_highpass_filter(shape, cutoff, order)
+        filt_img = fourier_filter(img, filt)
+        filt_str = f"{selected_filter} c={cutoff}, n={order}"
+        
+        df = pd.DataFrame({'x':x, 'y':filt[int(shape[0]/ 2), int(shape[1]/ 2):shape[1]]})
+        line_chart = alt.Chart(df).mark_line(interpolate='basis').encode(
+            alt.X('x', title='Frequency (cycle/pixel)'),
+            alt.Y('y', title='Amplitude')
+        )
+        st.altair_chart(line_chart, use_container_width=True)
                 
+    else: # Hanning
+        cutoff = st.slider("Cut-off:", min_value=0.05, max_value=1.0, step=0.05, value=0.5)
+        filt = getHanning_filter(shape, cutoff)
+        filt_img = fourier_filter(img, filt)
+        filt_str = f"{selected_filter} c={cutoff}"
+        
+        df = pd.DataFrame({'x':x, 'y':filt[int(shape[0]/ 2), int(shape[1]/ 2):shape[1]]})
+        line_chart = alt.Chart(df).mark_line(interpolate='basis').encode(
+            alt.X('x', title='Frequency (cycle/pixel)'),
+            alt.Y('y', title='Amplitude')
+        )
+        st.altair_chart(line_chart, use_container_width=True)
 
-        # elif selected_filter ==  Filter_list[3]:
-        #     with placeholder.container():
-        #         cutoff = st.slider("Cut-off:", min_value=0.01, max_value=1.0, step=0.05, value=0.25)
-        #         filt = getHamming_filter(shape, cutoff)
-
-        submitted = st.form_submit_button("Apply")
-        if submitted:
-
-            if selected_filter == Filter_list[0]:
-                sigma = fwhm/(2.355)
-                truncate = 4
-                radius = int(truncate * sigma + 0.5)
-                ksize = 2 * radius + 1
-                filt_img = gaussian(img, sigma, truncate=truncate, preserve_range=True, mode='reflect')
-                gauss_ker = gaussianKernel2(ksize, sigma,  twoDimensional=False)
-                
-                # st.line_chart(gauss_ker)
-                df = pd.DataFrame({
-                    'x':range(len(gauss_ker)),
-                    'y':gauss_ker})
-                line_chart = alt.Chart(df).mark_line(interpolate='basis').encode(
-                    alt.X('x', title='Pixels'),
-                    alt.Y('y', title='Kernel weight')
-                )
-                with st.container():
-                    st.altair_chart(line_chart, use_container_width=True)
-                
-                
-                
-            else:
-                if selected_filter ==  Filter_list[1]:
-                    filt = getButterworth_lowpass_filter(shape, cutoff, order)
-                else:   
-                    filt = getHanning_filter(shape, cutoff)
-                    
-                filt_img =  fourier_filter(img, filt)
-                df = pd.DataFrame({
-                        'x':x,
-                        'y':filt[int(shape[0]/ 2), int(shape[1]/ 2):shape[1]]
-                    })
-
-                line_chart = alt.Chart(df).mark_line(interpolate='basis').encode(
-                    alt.X('x', title='Frequency (cycle/pixel)'),
-                    alt.Y('y', title='Amplitude')
-                )
-                with st.container():
-                    st.altair_chart(line_chart, use_container_width=True)
+    if filt_img is not None:
+        st.session_state.last_filt = filt_img[0:m, 0:n]
+        st.session_state.last_filt_str = filt_str
 
 with right_col:
-    # st.subheader('Original Image')
-    # st.write("##")
-    # @st.cache_data(persist="disk")
-    # def display_org(img):
-    #     org_img = Image.fromarray(img)
-    #     st.subheader('Original Image')
-    #     # st.image(org_img, width=340)
-    # display_org(img)
-    
-    # st.image(org_img, width=340)
     fig_org = px.imshow(img, binary_string=True)
     fig_org.update_xaxes(showticklabels=False)
     fig_org.update_yaxes(showticklabels=False)
@@ -245,70 +225,78 @@ with right_col:
     st.plotly_chart(fig_org, use_container_width=False)
    
     
-    if filt_img is not None:
-        filt_img = filt_img[0:m, 0:n]
-        # img_disp = Image.fromarray(filt_img)
-        # img_disp = img_disp.convert("L")
-        # st.subheader('Filtered Image')
-        # st.image(img_disp, width=340)
-        # fig_org = px.imshow(img, binary_string=True)
-        # fig_org.update_layout(width=340, height=340)
-        # st.plotly_chart(fig_org, use_container_width=True)
-        
-        fig_filt = px.imshow(filt_img, binary_string=True)
+    if st.session_state.last_filt is not None:
+        fig_filt = px.imshow(st.session_state.last_filt, binary_string=True)
         fig_filt.update_xaxes(showticklabels=False)
         fig_filt.update_yaxes(showticklabels=False)
         fig_filt.update_layout(width=340, title_text="Filtered Image")
         st.plotly_chart(fig_filt, use_container_width=False)
+        st.write(st.session_state.last_filt_str)
         
-    
-        if selected_filter == Filter_list[0]:
-            st.write(selected_filter, 'FWHM', fwhm)
-        elif selected_filter == Filter_list[1]:
-            st.write(selected_filter, 'with Cut-off:', cutoff, ' Order:', order)
-        else:
-            st.write(selected_filter, 'with Cut-off:', cutoff)
-    # else:
-        
+        if st.button("Add to Comparison"):
+            st.session_state.compare_filter.append({
+                'name': f"{sample_image} - {st.session_state.last_filt_str}",
+                'data': st.session_state.last_filt
+            })
+            st.success(f"Added to comparison list ({len(st.session_state.compare_filter)} images total)")
         
 st.write("---")
 
+# --- COMPARISON GALLERY ---
+if len(st.session_state.compare_filter) > 0:
+    st.subheader("Comparison Gallery")
+    if st.button("Clear Comparison"):
+        st.session_state.compare_filter = []
+        st.rerun()
 
-# if filt_img is not None:
+    # Always include Original in comparison if desired, or just the saved ones
+    all_to_compare = [{'name': 'Original', 'data': img}] + st.session_state.compare_filter
+    num_images = len(all_to_compare)
+    
+    titles = [item['name'] for item in all_to_compare]
+    cols_per_row = 3
+    num_rows = (num_images + cols_per_row - 1) // cols_per_row
+    
+    fig_comp = make_subplots(rows=num_rows, cols=min(num_images, cols_per_row), subplot_titles=titles)
+    
+    for i, img_obj in enumerate(all_to_compare):
+        row = (i // cols_per_row) + 1
+        col = (i % cols_per_row) + 1
+        fig_comp.add_trace(
+            go.Heatmap(z=img_obj['data'], colorscale='gray', showscale=False),
+            row=row, col=col
+        )
+    
+    fig_comp.update_xaxes(showticklabels=False, matches='x')
+    fig_comp.update_yaxes(
+        showticklabels=False, 
+        matches='y', 
+        autorange='reversed',
+        scaleanchor="x",
+        scaleratio=1
+    )
+    
+    fig_comp.update_layout(
+        height=400 * num_rows,
+        margin=dict(l=10, r=10, t=40, b=10),
+        hovermode=False
+    )
+    st.plotly_chart(fig_comp, use_container_width=True)
+    st.info("💡 Zoom into any image to synchronize the view across all images.")
+# --------------------------
+
+st.write("---")
+
 display = st.checkbox('More details')
 
-if display and (filt_img is not None):
+if display and (st.session_state.last_filt is not None):
+    filt_img = st.session_state.last_filt
     cols = colors.DEFAULT_PLOTLY_COLORS
-    # with st.container():
     if selected_filter == Filter_list[0]:
-        gauss_2D = gaussianKernel2(ksize, sigma)
-        # # with st.expander('SEE FILTERING PROCESS'):
-        #     # gauss_2D = np.sqrt(gauss_ker * np.transpose(gauss_ker))
-        #     gauss_2D = gaussianKernel2(ksize, sigma)
-        #     fig_1, axr_1 = plt.subplots(3,2, figsize = (10,10))
-        #     font_size = 8
-        #     axr_1[0,0].imshow(img, cmap='gray')
-        #     axr_1[0,0].set_title('Original image', fontsize=font_size)
-        #     axr_1[0,1].plot(img[int(shape[0]/ 2),:])
-        #     axr_1[0,1].set_title('Central profile of the original image', fontsize=font_size)
-
-        #     axr_1[1,0].imshow(gauss_2D, cmap='gray')
-        #     axr_1[1,0].set_title('2D Gaussian kernel size= '+str(ksize)+"x"+str(ksize), fontsize=font_size)
-            
-        #     axr_1[1,1].plot(gauss_ker)
-        #     axr_1[1,1].set_title('1D Gaussian kernel', fontsize=font_size)
-
-        #     axr_1[2,0].imshow(filt_img, cmap='gray')
-        #     axr_1[2,0].set_title('Filtered image', fontsize=font_size)
-        #     axr_1[2,1].plot(filt_img[int(shape[0]/ 2),:])
-        #     axr_1[2,1].set_title('Central profile of the filtered image', fontsize=font_size)
-            
-        #     st.pyplot(fig_1)
-        # figm = px.imshow(img, binary_string=True)
-        # figm.update_layout(width=400, height=400)
-        
-        # fig_filt= px.imshow(filt_img, binary_string=True)
-
+        # sigma = fwhm/(2.355)
+        # radius = int(4 * sigma + 0.5)
+        # ksize = 2 * radius + 1
+        # gauss_2D = gaussianKernel2(ksize, sigma)
         
         fig = make_subplots(rows=4, cols=5,
                             specs=[[{"rowspan": 2, "colspan": 2}, None, {"rowspan": 2, "colspan": 2}, None, {}],
@@ -325,92 +313,59 @@ if display and (filt_img is not None):
                  line=dict(width=2),
                  showlegend=False)
         fig.add_trace(trace, 3, 1)
-        # fig.add_trace(go.Scatter(x=np.linspace(0,n,n, endpoint=False), y=np.squeeze(img[int(shape[0]/ 2),:])), 2, 1,)
         fig.add_trace(fig_filt.data[0], 1, 3)
         trace=go.Scatter(x=np.linspace(0,n,n, endpoint=False),
                  y=np.squeeze(filt_img[int(shape[0]/ 2),:]),
                  line=dict(width=2),
                  showlegend=False)
         fig.add_trace(trace, 3, 1)
-        # fig.add_trace(go.Scatter(x=np.linspace(0,n,n, endpoint=False), y=np.squeeze(filt_img[int(shape[0]/ 2),:])), 2, 1)
         
-        gauss_2D = gaussianKernel2(ksize, sigma)
-        # fig = go.Figure()
-        trace=go.Scatter(x=np.linspace(0,ksize,ksize, endpoint=False),
-            y=np.squeeze(gauss_2D[int(ksize/2),:]),
+        # Need to recompute these for the detail view
+        sigma_detail = float(st.session_state.last_filt_str.split('=')[-1]) if 'FWHM' in st.session_state.last_filt_str else 1.0
+        sigma_detail = sigma_detail/2.355
+        ksize_detail = int(4 * sigma_detail + 0.5) * 2 + 1
+        gauss_2D = gaussianKernel2(ksize_detail, sigma_detail)
+
+        trace=go.Scatter(x=np.linspace(0,ksize_detail,ksize_detail, endpoint=False),
+            y=np.squeeze(gauss_2D[int(ksize_detail/2),:]),
             line=dict(width=2),
             showlegend=False)
         fig.add_trace(trace, 1, 5)
-        fig.update_layout(title='Gaussian Kernel',
-           xaxis_title='Pixe;',
-           yaxis_title='Kernel weight')
-        # st.plotly_chart(fig, use_container_width=True)
         
         g_kernel = px.imshow(gauss_2D, binary_string=True)
         g_kernel.update_xaxes(showticklabels=False)
         g_kernel.update_yaxes(showticklabels=False)
-        g_kernel.update_layout(width=100)
         fig.add_trace(g_kernel.data[0], 2, 5)
-        # st.plotly_chart(g_kernel, use_container_width=True)
         
-        # fig.show()
         fig.update_layout(coloraxis_showscale=False)
         fig.update_xaxes(showticklabels=False)
         fig.update_yaxes(showticklabels=False)
         fig.update_layout(width=700, height=800)
         st.plotly_chart(fig, use_container_width=False)
-        # g_left_col, g_right_col  = st.columns(2, gap="large")
-        # with g_left_col:
-        #     st.plotly_chart(fig_org, use_container_width=False)
             
 
     else:
-        # with st.expander('SEE FITERING PROCESS'):
-            # intro_markdown = read_markdown_file(BASE_DIR / "markdown/Text directory.md")
             intro_markdown = read_markdown_file(os.path.join(BASE_DIR, "markdown/Text directory.md"))
             st.markdown(intro_markdown, unsafe_allow_html=True)
 
             image_fft = np.fft.fft2(img)
             shift_fft = np.fft.fftshift(image_fft)
             mag_img_dft = np.log(np.abs(shift_fft)+1)
-            filt_dft = np.multiply(filt, shift_fft)
+            
+            # Re-generate the filter used for the last result
+            if 'Butterworth' in st.session_state.last_filt_str:
+                parts = st.session_state.last_filt_str.split(',')
+                c = float(parts[0].split('=')[-1])
+                o = int(parts[1].split('=')[-1])
+                filt_current = getButterworth_lowpass_filter(shape, c, o)
+            else:
+                c = float(st.session_state.last_filt_str.split('=')[-1])
+                filt_current = getHanning_filter(shape, c)
+
+            filt_dft = np.multiply(filt_current, shift_fft)
             mag_filt_dft = np.log(np.abs(filt_dft)+1)
-            mag_filt= np.log(np.abs(filt)+1)
+            mag_filt= np.log(np.abs(filt_current)+1)
 
-            # fig, axr = plt.subplots(3,3, figsize = (10,10))
-            # font_size = 8
-            # axr[0,0].imshow(img, cmap='gray')
-            # axr[0,0].set_title('Original image, f', fontsize=font_size)
-            # axr[0,1].imshow(mag_img_dft, cmap='gray')
-            # axr[0,1].set_title('Image in Frequency Domain, F', fontsize=font_size)
-            # axr[0,0].set_xticklabels('')
-            # axr[0,1].set_xticklabels('')
-            # axr[0,0].set_yticklabels('')
-            # axr[0,1].set_yticklabels('')
-            # axr[0,2].plot(x, mag_img_dft[int(shape[0]/ 2),int(shape[1]/ 2):shape[1]])
-
-            # axr[1,1].imshow(mag_filt, cmap='gray')
-            # if selected_filter == 1:
-            #     axr[1,1].set_title(selected_filter +' G with Cut-off = ' + str(cutoff) + ', Order = ' + str(order), fontsize=font_size)
-            # else:
-            #     axr[1,1].set_title(selected_filter +' G with Cut-off = ' + str(cutoff), fontsize=font_size)
-            # axr[1,2].plot(x,filt[int(shape[0] / 2),int(shape[1]/ 2):shape[1]])
-            # axr[1,0].set_xticklabels('')
-            # axr[1,1].set_xticklabels('')
-            # axr[1,0].set_yticklabels('')
-            # axr[1,1].set_yticklabels('')
-
-            # axr[2,0].imshow(filt_img, cmap='gray')
-            # axr[2,0].set_title('Filtered image', fontsize=font_size)
-            # axr[2,1].imshow(mag_filt_dft, cmap='gray')
-            # axr[2,1].set_title('Filtered image F*G in Frequency Domain', fontsize=font_size)
-            # axr[2,0].set_xticklabels('')
-            # axr[2,1].set_xticklabels('')
-            # axr[2,0].set_yticklabels('')
-            # axr[2,1].set_yticklabels('')
-            # axr[2,2].plot(x, mag_filt_dft[int(shape[0]/ 2),int(shape[1]/ 2):shape[1]])
-
-            # st.pyplot(fig)
             fig = make_subplots(rows=3, cols=3,
                             shared_xaxes=True, 
                             vertical_spacing=0.05,
@@ -428,7 +383,7 @@ if display and (filt_img is not None):
             
             fig.add_trace(px.imshow(mag_filt, binary_string=True).data[0], 2, 2)
             trace=go.Scatter(x=np.linspace(0,n,n, endpoint=False),
-                    y=np.squeeze(filt[int(shape[0]/ 2),int(shape[1]/ 2):shape[1]]),
+                    y=np.squeeze(filt_current[int(shape[0]/ 2),int(shape[1]/ 2):shape[1]]),
                     line=dict(width=2),
                     showlegend=False)
             fig.add_trace(trace, 2, 3)
@@ -441,11 +396,7 @@ if display and (filt_img is not None):
                     showlegend=False)
             fig.add_trace(trace, 3, 3)
             
-            
-            
             fig.update_layout(coloraxis_showscale=False)
-            # fig.update_xaxes(showticklabels=False)
-            # fig.update_yaxes(showticklabels=False)
             fig.update_layout(width=900, height=800)
             st.plotly_chart(fig, use_container_width=False)
     
