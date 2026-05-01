@@ -81,10 +81,53 @@ with st.form("Acquisition Settings"):
         for i, idx in enumerate(proj_indices):
             prj_subset[i, :, :] = prj[idx, :, :]
         
+        # Data Info Display
+        total_projections = len(proj_indices)
+        st.write(f"**Total Projections Acquired:** {total_projections}")
+        st.write(f"**Detector Matrix Size:** {n_x} (bins) x {n_z} (slices)")
+        
+        # Grid/Montage of Projections
+        st.markdown("**Capturing Sequence (Montage)**")
+        
+        # Show exactly 8 projections (or total if less than 8)
+        num_m = min(8, total_projections)
+        m_step = max(1, total_projections // num_m)
+        montage_indices = proj_indices[::m_step][:num_m]
+        
+        n_rows_m = 2
+        n_cols_m = 4
+        
+        fig_m1 = make_subplots(rows=n_rows_m, cols=n_cols_m, 
+                              subplot_titles=[f"{ang_list[idx]}°" for idx in montage_indices],
+                              horizontal_spacing=0.01, vertical_spacing=0.1)
+        
+        for i, idx in enumerate(montage_indices):
+            r, c = (i // n_cols_m) + 1, (i % n_cols_m) + 1
+            fig_m1.add_trace(go.Heatmap(z=prj[idx, :, :], colorscale='gray', showscale=False), row=r, col=c)
+        
+        fig_m1.update_xaxes(showticklabels=False)
+        fig_m1.update_yaxes(
+            showticklabels=False, 
+            autorange='reversed',
+            scaleanchor="x",
+            scaleratio=1
+        )
+        fig_m1.update_layout(height=450, width=900, margin=dict(l=10, r=10, t=30, b=10))
+        st.plotly_chart(fig_m1, use_container_width=False)
+
+        st.markdown("**Animation of All Captured Projections**")
+        # Custom frame labels for animation
+        frame_labels = [f"#{i+1} ({ang}°)" for i, ang in enumerate(wrapped_range)]
+        
         fig_prj_anim = px.imshow(prj_subset, animation_frame=0, binary_string=True, 
-                               labels=dict(animation_frame="Projection Index", x="Detector X", y="Detector Y"))
+                               labels=dict(animation_frame="Projection Angle", x="Detector Position (X)", y="Detector Position (Y)"))
+        
+        # Manually update slider labels to show degrees
+        for i, label in enumerate(frame_labels):
+            fig_prj_anim.layout.sliders[0].steps[i].label = label
+
         fig_prj_anim.update_layout(width=400, height=400, margin=dict(l=0,r=0,t=0,b=0))
-        fig_prj_anim.update_xaxes(title_text="Detector Position (X)").update_yaxes(title_text="Detector Position (Y)")
+        fig_prj_anim.update_xaxes(title_text="Detector X").update_yaxes(title_text="Detector Y")
         st.plotly_chart(fig_prj_anim, use_container_width=True)
 
 # ---- 2️⃣ STEP 2: THE INTERACTIVE BRIDGE (PROFILE & SINOGRAM) ----
@@ -105,9 +148,6 @@ with st.container():
 # --- Generate Dynamic Sinogram from 3D Projections ---
 # prj has shape (120, n_z, n_x), where 120 are angles in 3-degree steps
 sinogram_dynamic = np.zeros((360, n_x))
-ang_indices_3deg = range(357, -1, -3) 
-ang_list = list(ang_indices_3deg)
-
 for i, ang in enumerate(ang_list):
     sinogram_dynamic[ang, :] = prj[i, selected_slice, :]
 
@@ -179,6 +219,77 @@ with bridge_col2:
     fig_sino_bridge.update_xaxes(title_text="Detector Position (X)").update_yaxes(title_text="Acquisition Angle (θ)")
     st.plotly_chart(fig_sino_bridge, use_container_width=True)
     st.caption("The red line highlights the current angle in the complete Sinogram.")
+
+# ---- 3️⃣ STEP 3: ADVANCED MONTAGE & SINOGRAM EXPLORER ----
+st.subheader("3️⃣ Step 3: Projection & Sinogram Linkage")
+st.info("""
+In this view, we look at **multiple projections** simultaneously. 
+- **Green Lines:** Show the same anatomical slice across all angles.
+- **Red Line:** Highlights the specific angle you are currently focusing on in the montage grid.
+""")
+
+# Interaction for Step 3
+m_c1, m_c2 = st.columns([1, 1])
+with m_c1:
+    y_sel = st.slider("Select Slice Row (Y):", 0, n_z - 1, selected_slice, key="y_sel")
+with m_c2:
+    # Use a subset of angles for the montage to keep it readable (every 30 degrees)
+    montage_angles = sorted([a for a in ang_list if a % 30 == 0])
+    a_sel = st.select_slider("Select Active Angle (ϴ) in Montage:", options=montage_angles, value=0)
+
+exp_col1, exp_col2 = st.columns([1.2, 0.8], gap="large")
+
+with exp_col1:
+    st.markdown("**Projection Montage**")
+    # Create 3x4 grid for 12 projections
+    n_rows, n_cols = 3, 4
+    fig_montage = make_subplots(rows=n_rows, cols=n_cols, 
+                               subplot_titles=[f"{ang}°" for ang in montage_angles],
+                               horizontal_spacing=0.02, vertical_spacing=0.05)
+    
+    for i, ang in enumerate(montage_angles):
+        row = (i // n_cols) + 1
+        col = (i % n_cols) + 1
+        
+        # Get projection data
+        p_idx = ang_list.index(ang)
+        p_data = prj[p_idx, :, :]
+        
+        # Add as heatmap
+        fig_montage.add_trace(go.Heatmap(z=p_data, colorscale='gray', showscale=False), row=row, col=col)
+        
+        # Add highlight lines
+        line_color = "red" if ang == a_sel else "green"
+        fig_montage.add_shape(type="line", x0=0, y0=y_sel, x1=n_x, y1=y_sel, 
+                             line=dict(color=line_color, width=2, dash="dash"),
+                             row=row, col=col)
+        
+    fig_montage.update_xaxes(showticklabels=False).update_yaxes(showticklabels=False, autorange='reversed')
+    fig_montage.update_layout(height=600, margin=dict(l=10, r=10, t=30, b=10))
+    st.plotly_chart(fig_montage, use_container_width=True)
+
+with exp_col2:
+    st.markdown("**Dynamic Sinogram**")
+    # Rebuild sinogram for the y_sel
+    sino_exp = np.zeros((360, n_x))
+    for i, ang in enumerate(ang_list):
+        sino_exp[ang, :] = prj[i, y_sel, :]
+    
+    if simulate_motion:
+        sino_exp = apply_motion(sino_exp, motion_amplitude)
+        
+    fig_sino_exp = px.imshow(sino_exp, color_continuous_scale='gray',
+                            labels=dict(x="Detector Position (X)", y="Angle (θ)"))
+    
+    # Highlight row
+    fig_sino_exp.add_hline(y=a_sel, line_dash="solid", line_color="red",
+                          annotation_text=f"Focus: {a_sel}°", annotation_position="top right")
+    
+    fig_sino_exp.update_layout(height=600, margin=dict(l=0,r=0,t=0,b=0), coloraxis_showscale=False)
+    fig_sino_exp.update_yaxes(autorange='reversed', title_text="Acquisition Angle (θ)")
+    fig_sino_exp.update_xaxes(title_text="Detector Position (X)")
+    st.plotly_chart(fig_sino_exp, use_container_width=True)
+    st.caption(f"The red line highlights the specific angle ({a_sel}°) you are focusing on in the montage.")
 
 # ---- FOOTER ----
 st.markdown("---")
