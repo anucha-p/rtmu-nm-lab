@@ -58,7 +58,7 @@ with st.form("Acquisition Settings"):
     acq_col1, acq_col2 = st.columns([1, 2])
     with acq_col1:
         start_ang = st.radio("Start angle (ϴ):", [0, 45, 90, 180], index=0, horizontal=True)
-        step_ang = st.radio("Step angle (ϴ):", [3, 6, 12], index=2, horizontal=True)
+        step_ang = st.radio("Step angle (ϴ):", [3, 6, 12], index=1, horizontal=True)
         ang_range = st.radio("Angular range (ϴ):", [180, 360], index=1, horizontal=True)
         rot_dir = st.radio("Rotation Direction:", ["CW", "CCW"], index=0, horizontal=True)
         btn_acq = st.form_submit_button("Preview Acquisition")
